@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, Calendar, CheckCircle, FileText, HelpCircle, ExternalLink, Download } from 'lucide-react';
+import { CreditCard, Calendar, CheckCircle, FileText, HelpCircle, ExternalLink, Download, Plus } from 'lucide-react';
 import { mockPayments, mockPlan } from '@/lib/fixtures';
 import { PaymentHeroCard } from '@/components/dashboard/PaymentHeroCard';
 import { PaymentProgressCard } from '@/components/dashboard/PaymentProgressCard';
@@ -11,6 +12,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 export default function CustomerDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isInArrears, setIsInArrears] = useState(false); // This would come from API/context
+  const navigate = useNavigate();
   
   const nextPayment = mockPayments.find(p => p.status === 'pending');
   const paidPayments = mockPayments.filter(p => p.status === 'paid').length;
@@ -28,6 +30,13 @@ export default function CustomerDashboard() {
 
   const daysUntil = getDaysUntilPayment();
 
+  const handleStartFinancing = () => {
+    // Reset onboarding state for new application
+    localStorage.removeItem('onboarding-completed');
+    localStorage.removeItem('onboarding-state');
+    navigate('/app/onboarding');
+  };
+
   // Simulate loading
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 1500);
@@ -41,12 +50,22 @@ export default function CustomerDashboard() {
     <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-7xl">
       {/* Page Header */}
       <div className="mb-6 sm:mb-8 animate-fade-in">
-        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          Welcome back, John
-        </h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          Here's an overview of your premium finance plan
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-2">
+              Welcome back, John
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              Here's an overview of your premium finance plan
+            </p>
+          </div>
+          <div className="hidden lg:block">
+            <Button onClick={handleStartFinancing} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Start Financing
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6">

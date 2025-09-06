@@ -13,8 +13,8 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Redirect to onboarding if not completed
-  if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding')) {
+  // Redirect to onboarding if not completed (but not during initial render to prevent mobile menu issues)
+  if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding') && location.pathname !== '/app/dashboard') {
     navigate('/app/onboarding');
   }
 
