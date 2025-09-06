@@ -13,8 +13,12 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Redirect to onboarding if not completed (but not during initial render to prevent mobile menu issues)
-  if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding') && location.pathname !== '/app/dashboard') {
+  // Define valid customer routes that don't require onboarding redirect
+  const validCustomerRoutes = ['/app/dashboard', '/app/payments', '/app/documents', '/app/support'];
+  const isValidCustomerRoute = validCustomerRoutes.some(route => location.pathname === route);
+
+  // Redirect to onboarding if not completed and not on a valid customer route
+  if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding') && !isValidCustomerRoute) {
     navigate('/app/onboarding');
   }
 

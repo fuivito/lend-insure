@@ -59,8 +59,8 @@ export default function CustomerDashboard() {
               Here's an overview of your premium finance plan
             </p>
           </div>
-          <div className="hidden lg:block">
-            <Button onClick={handleStartFinancing} className="gap-2">
+          <div className="w-full sm:w-auto">
+            <Button onClick={handleStartFinancing} className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Start Financing
             </Button>
