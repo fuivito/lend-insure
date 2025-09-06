@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Shield, CheckCircle, Clock, AlertCircle, CreditCard } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Shield, CheckCircle, Clock, AlertCircle, CreditCard, Info } from 'lucide-react';
 
 interface CreditCheckStepProps {
   data: any;
@@ -184,10 +185,35 @@ export function CreditCheckStep({ data, onUpdate, onComplete, completed }: Credi
               checked={consent}
               onCheckedChange={handleConsentChange}
             />
-            <div className="space-y-1 leading-none">
-              <label htmlFor="credit-consent" className="text-sm font-medium cursor-pointer">
-                I consent to a soft credit check being performed
-              </label>
+            <div className="space-y-1 leading-none flex-1">
+              <div className="flex items-center gap-2">
+                <label htmlFor="credit-consent" className="text-sm font-medium cursor-pointer">
+                  I consent to a soft credit check being performed *
+                </label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="font-semibold text-success">Soft Check</p>
+                          <p className="text-xs">• No impact on credit score</p>
+                          <p className="text-xs">• Not visible to other lenders</p>
+                          <p className="text-xs">• Used for eligibility assessment</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-destructive">Hard Check</p>
+                          <p className="text-xs">• Can impact credit score</p>
+                          <p className="text-xs">• Visible to other lenders</p>
+                          <p className="text-xs">• We don't perform these</p>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="text-sm text-muted-foreground">
                 By checking this box, you agree to LendInsure and our credit provider{' '}
                 <strong>Premium Finance Ltd</strong> performing a soft credit search to assess your eligibility.

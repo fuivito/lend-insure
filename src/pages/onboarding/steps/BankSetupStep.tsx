@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { 
-  Banknote, 
+  Building2, 
   CheckCircle, 
-  Link as LinkIcon, 
+  Clock, 
+  AlertTriangle, 
+  CreditCard,
   Shield,
-  Building,
-  Clock,
-  AlertCircle 
+  Eye,
+  EyeOff,
+  Plus
 } from 'lucide-react';
 
 interface BankSetupStepProps {
@@ -22,251 +24,226 @@ interface BankSetupStepProps {
   completed: boolean;
 }
 
-export function BankSetupStep({ data, onUpdate, onComplete, completed }: BankSetupStepProps) {
-  const [connectionMethod, setConnectionMethod] = useState<'openbanking' | 'manual'>('openbanking');
-  const [bankData, setBankData] = useState(data.bankSetup || {
-    connected: false,
-    bankName: '',
-    accountNumber: '',
-    sortCode: '',
-    mandateSigned: false
-  });
-  const [isConnecting, setIsConnecting] = useState(false);
+const mockBanks = [
+  { id: 'hsbc', name: 'HSBC', logo: '🏦' },
+  { id: 'barclays', name: 'Barclays', logo: '🔵' },
+  { id: 'lloyds', name: 'Lloyds', logo: '🐎' },
+  { id: 'natwest', name: 'NatWest', logo: '💜' },
+  { id: 'santander', name: 'Santander', logo: '🔴' },
+  { id: 'nationwide', name: 'Nationwide', logo: '💙' },
+];
 
-  const handleOpenBankingConnect = async () => {
-    setIsConnecting(true);
+export function BankSetupStep({ data, onUpdate, onComplete, completed }: BankSetupStepProps) {
+  const [bankConnected, setBankConnected] = useState(data.bankSetup?.connected || false);
+  const [mandateSigned, setMandateSigned] = useState(data.bankSetup?.mandateSigned || false);
+  const [showAccountDetails, setShowAccountDetails] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<string | null>(data.bankSetup?.bankName || null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBankSelector, setShowBankSelector] = useState(false);
+  const [showMandateDialog, setShowMandateDialog] = useState(false);
+
+  const connectBank = async (bankId: string) => {
+    const bank = mockBanks.find(b => b.id === bankId);
+    if (!bank) return;
     
-    // Mock Open Banking connection
+    setSelectedBank(bank.name);
+    setIsLoading(true);
+    setShowBankSelector(false);
+    
+    // Mock bank connection
     setTimeout(() => {
-      const newBankData = {
-        connected: true,
-        bankName: 'Lloyds Bank',
-        accountNumber: '****1234',
-        sortCode: '30-00-00',
-        mandateSigned: false
-      };
-      setBankData(newBankData);
-      onUpdate({ bankSetup: newBankData });
-      setIsConnecting(false);
+      setBankConnected(true);
+      setIsLoading(false);
+      onUpdate({ bankSetup: { connected: true, mandateSigned, bankName: bank.name, accountNumber: '****1234' } });
     }, 2000);
   };
 
-  const handleManualEntry = () => {
-    if (bankData.accountNumber && bankData.sortCode) {
-      const newBankData = {
-        ...bankData,
-        connected: true,
-        bankName: 'Manual Entry Bank'
-      };
-      setBankData(newBankData);
-      onUpdate({ bankSetup: newBankData });
-    }
-  };
-
-  const handleSignMandate = () => {
-    const newBankData = {
-      ...bankData,
-      mandateSigned: true
-    };
-    setBankData(newBankData);
-    onUpdate({ bankSetup: newBankData });
+  const signMandate = () => {
+    setMandateSigned(true);
+    setShowMandateDialog(false);
+    onUpdate({ bankSetup: { connected: bankConnected, mandateSigned: true, bankName: selectedBank, accountNumber: '****1234' } });
     onComplete();
-  };
-
-  const handleAccountChange = (field: string, value: string) => {
-    setBankData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <Banknote className="h-12 w-12 text-primary mx-auto mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Connect Your Bank Account</h2>
+        <CreditCard className="h-12 w-12 text-primary mx-auto mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Bank Account Setup</h2>
         <p className="text-muted-foreground">
-          Set up automatic payments for your premium finance plan
+          Connect your bank account to set up automatic payments for your premium finance plan
         </p>
       </div>
 
-      {!bankData.connected ? (
-        <Tabs value={connectionMethod} onValueChange={(value) => setConnectionMethod(value as any)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="openbanking">Open Banking (Recommended)</TabsTrigger>
-            <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-          </TabsList>
+      {isLoading && (
+        <Card className="border-warning/20 bg-warning-light">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin">
+                <Clock className="h-6 w-6 text-warning" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-warning">Connecting to {selectedBank}...</h3>
+                <p className="text-sm text-warning/80">
+                  Please complete authentication on your bank's website. This usually takes 30-60 seconds.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <TabsContent value="openbanking" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <LinkIcon className="h-5 w-5" />
-                  Secure Bank Connection
-                </CardTitle>
-                <CardDescription>
-                  Connect your bank account securely using Open Banking
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4">
-                  <div className="flex items-start gap-3">
-                    <Shield className="h-5 w-5 text-success mt-0.5" />
-                    <div>
-                      <p className="font-medium">Bank-level security</p>
-                      <p className="text-sm text-muted-foreground">
-                        Your login details are never shared with us
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-success mt-0.5" />
-                    <div>
-                      <p className="font-medium">Instant verification</p>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically verify your account details
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-success mt-0.5" />
-                    <div>
-                      <p className="font-medium">Quick setup</p>
-                      <p className="text-sm text-muted-foreground">
-                        Complete setup in under 2 minutes
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {isConnecting ? (
-                  <div className="border border-border rounded-lg p-6 text-center">
-                    <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p className="font-medium">Connecting to your bank...</p>
-                    <p className="text-sm text-muted-foreground">Please complete authentication on your bank's website</p>
-                  </div>
-                ) : (
-                  <Button className="w-full btn-hero" onClick={handleOpenBankingConnect}>
-                    <Building className="mr-2 h-4 w-4" />
-                    Connect with Open Banking
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="manual" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Enter Bank Details</CardTitle>
-                <CardDescription>
-                  Manually enter your bank account information
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="sort-code">Sort Code</Label>
-                    <Input
-                      id="sort-code"
-                      placeholder="30-00-00"
-                      value={bankData.sortCode || ''}
-                      onChange={(e) => handleAccountChange('sortCode', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="account-number">Account Number</Label>
-                    <Input
-                      id="account-number"
-                      placeholder="12345678"
-                      value={bankData.accountNumber || ''}
-                      onChange={(e) => handleAccountChange('accountNumber', e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div className="bg-warning-light p-4 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="font-medium text-warning">Additional verification required</p>
-                      <p className="text-sm text-warning/80">
-                        Manual entries require additional verification steps that may delay your application
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <Button 
-                  className="w-full"
-                  onClick={handleManualEntry}
-                  disabled={!bankData.accountNumber || !bankData.sortCode}
-                >
-                  Verify Account Details
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <div className="space-y-6">
-          {/* Bank Connection Status */}
-          <Card className="border-success/20 bg-success-light">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-6 w-6 text-success" />
+      {!bankConnected ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Connect Your Bank Account
+            </CardTitle>
+            <CardDescription>
+              We use Open Banking to securely verify your account details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-success">Bank account connected</h3>
-                  <p className="text-sm text-success/80">
-                    {bankData.bankName} - Account ending in {bankData.accountNumber.slice(-4)}
+                  <p className="font-medium">Secure Connection</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your banking details are encrypted and we never store your login credentials.
+                    The connection is read-only and managed by your bank.
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            
+            <Dialog open={showBankSelector} onOpenChange={setShowBankSelector}>
+              <DialogTrigger asChild>
+                <Button className="w-full btn-hero">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Select Your Bank
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Select Your Bank</DialogTitle>
+                  <DialogDescription>
+                    Choose your bank to connect via Open Banking
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-2">
+                  {mockBanks.map((bank) => (
+                    <Button
+                      key={bank.id}
+                      variant="outline"
+                      className="justify-start h-auto p-4"
+                      onClick={() => connectBank(bank.id)}
+                      disabled={isLoading}
+                    >
+                      <span className="text-2xl mr-3">{bank.logo}</span>
+                      <span className="font-medium">{bank.name}</span>
+                    </Button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-success/20 bg-success-light">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <CheckCircle className="h-6 w-6 text-success" />
+              <div>
+                <h3 className="font-semibold text-success">Bank Account Connected</h3>
+                <p className="text-sm text-success/80">{selectedBank} - Current Account</p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Account Number</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm">
+                    {showAccountDetails ? '12-34-56  87654321' : '••-••-••  ••••4321'}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAccountDetails(!showAccountDetails)}
+                  >
+                    {showAccountDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Account Holder</span>
+                <span className="text-sm font-medium">John Doe</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
+      {bankConnected && (
+        <>
+          <Separator />
+          
           {/* Direct Debit Mandate */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
+                <CreditCard className="h-5 w-5" />
                 Direct Debit Mandate
               </CardTitle>
               <CardDescription>
-                Authorize automatic monthly payments
+                Set up automatic monthly payments for your premium finance plan
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!bankData.mandateSigned ? (
-                <div>
-                  <div className="bg-muted p-4 rounded-lg mb-4">
-                    <h4 className="font-medium mb-2">Direct Debit Guarantee</h4>
-                    <div className="text-sm text-muted-foreground space-y-2">
-                      <p>• This Guarantee is offered by all banks and building societies that accept instructions to pay Direct Debits</p>
-                      <p>• If there are any changes to the amount, date or frequency of your Direct Debit Premium Finance Ltd will notify you 10 working days in advance</p>
-                      <p>• If you request Premium Finance Ltd to collect a payment, confirmation of the amount and date will be given to you at the time of the request</p>
-                      <p>• If an error is made in the payment of your Direct Debit, by Premium Finance Ltd or your bank or building society, you are entitled to a full and immediate refund of the amount paid from your bank or building society</p>
+              {!mandateSigned ? (
+                <>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h4 className="font-semibold mb-2">Payment Schedule</h4>
+                    <div className="grid gap-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Monthly payment:</span>
+                        <span className="font-medium">£114.00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>First payment:</span>
+                        <span className="font-medium">15th February 2024</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total payments:</span>
+                        <span className="font-medium">10</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 bg-primary-light rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium">Monthly payment: £114.00</p>
-                      <p className="text-sm text-muted-foreground">First payment: 15th February 2024</p>
+                  <div className="p-4 bg-warning-light rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
+                      <div>
+                        <p className="font-medium text-warning mb-1">Direct Debit Guarantee</p>
+                        <p className="text-xs text-warning/80">
+                          This guarantee is offered by all banks. If there are changes to payments, 
+                          you'll be notified 10 working days in advance. Full refund available 
+                          for any incorrect payments.
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant="outline">10 payments</Badge>
                   </div>
-
-                  <Button className="w-full btn-hero" onClick={handleSignMandate}>
-                    Sign Direct Debit Mandate
-                    <CheckCircle className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
+                </>
               ) : (
-                <div className="bg-success-light p-4 rounded-lg">
+                <div className="p-4 bg-success-light rounded-lg">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-success" />
                     <div>
                       <p className="font-medium text-success">Direct Debit mandate signed</p>
                       <p className="text-sm text-success/80">
-                        Your payments will be collected automatically each month
+                        Monthly payments of £114.00 will be collected automatically
                       </p>
                     </div>
                   </div>
@@ -274,18 +251,81 @@ export function BankSetupStep({ data, onUpdate, onComplete, completed }: BankSet
               )}
             </CardContent>
           </Card>
-        </div>
+
+          {/* Action Button */}
+          <div className="flex justify-end">
+            <Dialog open={showMandateDialog} onOpenChange={setShowMandateDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  disabled={!bankConnected || mandateSigned}
+                  className={mandateSigned ? 'btn-success' : 'btn-hero'}
+                >
+                  {mandateSigned ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Mandate Signed
+                    </>
+                  ) : (
+                    <>
+                      Sign Direct Debit Mandate
+                      <CreditCard className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Direct Debit Mandate</DialogTitle>
+                  <DialogDescription>
+                    Please review and confirm your Direct Debit mandate
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h4 className="font-semibold mb-2">Instruction to your bank or building society</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Please pay Premium Finance Ltd Direct Debits from the account detailed in this Instruction 
+                      subject to the safeguards assured by the Direct Debit Guarantee.
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-sm font-medium">Service user number</Label>
+                      <p className="text-sm">123456</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Reference</Label>
+                      <p className="text-sm">PF-{Date.now().toString().slice(-8)}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4 border-t">
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setShowMandateDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={signMandate} className="btn-hero">
+                        Confirm & Sign Mandate
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </>
       )}
 
       {/* Security Notice */}
       <div className="text-xs text-muted-foreground p-4 bg-muted rounded-lg">
         <p className="mb-2">
-          <strong>Security:</strong> Your bank account details are encrypted and stored securely.
-          We are PCI DSS compliant and follow industry best practices.
+          <strong>Security:</strong> Your bank account details are encrypted using bank-level security. 
+          We are FCA regulated and follow strict data protection standards.
         </p>
         <p>
-          <strong>Direct Debit:</strong> You can cancel your Direct Debit at any time by contacting your bank.
-          Please note that cancelling payments may affect your agreement.
+          <strong>Cancellation:</strong> You can cancel your Direct Debit at any time through your bank. 
+          Please note this may affect your credit agreement.
         </p>
       </div>
     </div>

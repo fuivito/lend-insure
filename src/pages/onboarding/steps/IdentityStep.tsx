@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, User, Mail, Phone, MapPin, CheckCircle } from 'lucide-react';
+import { Upload, User, Mail, Phone, MapPin, CheckCircle, X, Search } from 'lucide-react';
 import type { Customer } from '@/lib/fixtures';
 
 interface IdentityStepProps {
@@ -17,6 +17,9 @@ export function IdentityStep({ data, onUpdate, onComplete, completed }: Identity
   const [identity, setIdentity] = useState<Partial<Customer>>(data.identity || {});
   const [isValid, setIsValid] = useState(false);
   const [documentUploaded, setDocumentUploaded] = useState(false);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [addressLookup, setAddressLookup] = useState('');
+  const [showManualAddress, setShowManualAddress] = useState(false);
 
   useEffect(() => {
     // Validate form
@@ -52,8 +55,30 @@ export function IdentityStep({ data, onUpdate, onComplete, completed }: Identity
   };
 
   const handleDocumentUpload = () => {
-    // Mock document upload
+    // Mock document upload with preview
     setDocumentUploaded(true);
+    setDocumentPreview('/api/placeholder/200/150'); // Mock preview URL
+  };
+
+  const handleRetakeDocument = () => {
+    setDocumentUploaded(false);
+    setDocumentPreview(null);
+  };
+
+  const handleAddressLookup = () => {
+    // Mock postcode lookup
+    if (addressLookup.toLowerCase().includes('sw1a')) {
+      setIdentity(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          line1: '10 Downing Street',
+          city: 'London',
+          postcode: 'SW1A 2AA',
+          country: 'United Kingdom'
+        }
+      }));
+    }
   };
 
   // Update parent component when identity changes
@@ -129,44 +154,86 @@ export function IdentityStep({ data, onUpdate, onComplete, completed }: Identity
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="address-line1">Address Line 1 *</Label>
-              <Input
-                id="address-line1"
-                value={identity.address?.line1 || ''}
-                onChange={(e) => handleInputChange('address.line1', e.target.value)}
-                placeholder="123 High Street"
-              />
-            </div>
-            <div>
-              <Label htmlFor="address-line2">Address Line 2</Label>
-              <Input
-                id="address-line2"
-                value={identity.address?.line2 || ''}
-                onChange={(e) => handleInputChange('address.line2', e.target.value)}
-                placeholder="Apartment 4B"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="city">City *</Label>
-                <Input
-                  id="city"
-                  value={identity.address?.city || ''}
-                  onChange={(e) => handleInputChange('address.city', e.target.value)}
-                  placeholder="London"
-                />
+            {!showManualAddress && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="postcode-lookup">Postcode Lookup</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="postcode-lookup"
+                      value={addressLookup}
+                      onChange={(e) => setAddressLookup(e.target.value)}
+                      placeholder="Enter postcode (e.g., SW1A 1AA)"
+                    />
+                    <Button variant="outline" onClick={handleAddressLookup}>
+                      <Search className="h-4 w-4 mr-2" />
+                      Find
+                    </Button>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowManualAddress(true)}
+                  className="text-primary"
+                >
+                  Enter address manually
+                </Button>
               </div>
-              <div>
-                <Label htmlFor="postcode">Postcode *</Label>
-                <Input
-                  id="postcode"
-                  value={identity.address?.postcode || ''}
-                  onChange={(e) => handleInputChange('address.postcode', e.target.value)}
-                  placeholder="SW1A 1AA"
-                />
+            )}
+            
+            {(showManualAddress || identity.address?.line1) && (
+              <div className="space-y-4">
+                {showManualAddress && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowManualAddress(false)}
+                    className="text-primary mb-2"
+                  >
+                    ← Back to postcode lookup
+                  </Button>
+                )}
+                <div>
+                  <Label htmlFor="address-line1">Address Line 1 *</Label>
+                  <Input
+                    id="address-line1"
+                    value={identity.address?.line1 || ''}
+                    onChange={(e) => handleInputChange('address.line1', e.target.value)}
+                    placeholder="123 High Street"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="address-line2">Address Line 2</Label>
+                  <Input
+                    id="address-line2"
+                    value={identity.address?.line2 || ''}
+                    onChange={(e) => handleInputChange('address.line2', e.target.value)}
+                    placeholder="Apartment 4B"
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      value={identity.address?.city || ''}
+                      onChange={(e) => handleInputChange('address.city', e.target.value)}
+                      placeholder="London"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="postcode">Postcode *</Label>
+                    <Input
+                      id="postcode"
+                      value={identity.address?.postcode || ''}
+                      onChange={(e) => handleInputChange('address.postcode', e.target.value)}
+                      placeholder="SW1A 1AA"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -196,12 +263,29 @@ export function IdentityStep({ data, onUpdate, onComplete, completed }: Identity
                 </p>
               </div>
             ) : (
-              <div className="flex items-center gap-3 p-4 bg-success-light rounded-lg">
-                <CheckCircle className="h-5 w-5 text-success" />
-                <div>
-                  <p className="font-medium text-success">Document uploaded successfully</p>
-                  <p className="text-sm text-success/80">passport.jpg - 2.4 MB</p>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-success-light rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                  <div className="flex-1">
+                    <p className="font-medium text-success">Document uploaded successfully</p>
+                    <p className="text-sm text-success/80">passport.jpg - 2.4 MB</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleRetakeDocument}>
+                    <X className="h-4 w-4 mr-2" />
+                    Retake
+                  </Button>
                 </div>
+                
+                {documentPreview && (
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm font-medium mb-2">Document Preview</p>
+                    <img 
+                      src={documentPreview} 
+                      alt="Document preview" 
+                      className="w-32 h-24 object-cover rounded border"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

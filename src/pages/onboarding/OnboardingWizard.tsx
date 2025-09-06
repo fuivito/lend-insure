@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { authService } from '@/lib/auth';
 import { initialOnboardingState, type OnboardingState } from '@/lib/fixtures';
 
@@ -130,102 +130,111 @@ export default function OnboardingWizard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header with Progress Bar */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-6">
-          <div className="max-w-4xl mx-auto">
-            {/* Progress */}
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <h1 className="font-heading text-2xl font-bold">
-                  Step {state.currentStep}: {currentStep.title}
-                </h1>
-                <div className="text-sm text-muted-foreground">
-                  {state.currentStep} of {steps.length}
-                </div>
+        <div className="container mx-auto px-4 py-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="font-heading text-xl font-bold">Application Setup</h1>
+              <div className="text-sm text-muted-foreground">
+                Step {state.currentStep} of {steps.length}
               </div>
-              <Progress value={progress} className="progress-premium" />
             </div>
-
-            {/* Step indicators */}
-            <div className="flex justify-between">
-              {steps.map((step) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center ${
-                    step.id < steps.length ? 'flex-1' : ''
-                  }`}
-                >
-                  <div className={`
-                    w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                    ${state.completedSteps.includes(step.id)
-                      ? 'bg-success text-success-foreground'
-                      : step.id === state.currentStep
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                    }
-                  `}>
-                    {step.id}
-                  </div>
-                  <div className="ml-2 hidden sm:block">
-                    <div className={`text-sm font-medium ${
-                      step.id === state.currentStep ? 'text-foreground' : 'text-muted-foreground'
-                    }`}>
-                      {step.title}
-                    </div>
-                  </div>
-                  {step.id < steps.length && (
-                    <div className="flex-1 h-0.5 bg-border mx-4 hidden sm:block" />
-                  )}
-                </div>
-              ))}
-            </div>
+            <Progress value={progress} className="progress-premium h-2" />
           </div>
         </div>
       </header>
 
-      {/* Step Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <Card className="card-premium">
-            <CardHeader>
-              <CardTitle>{currentStep.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StepComponent
-                data={state.data}
-                onUpdate={updateStepData}
-                onComplete={() => completeStep(state.currentStep)}
-                completed={state.completedSteps.includes(state.currentStep)}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Navigation */}
-          <div className="flex justify-between mt-8">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={!canGoBack()}
-              className="flex items-center"
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-
-            <Button
-              onClick={handleNext}
-              disabled={!canGoNext() || isLoading}
-              className="flex items-center btn-hero"
-            >
-              {state.currentStep === steps.length ? 'Complete' : 'Next'}
-              {state.currentStep < steps.length && (
-                <ChevronRight className="h-4 w-4 ml-2" />
-              )}
-            </Button>
+      <div className="flex min-h-[calc(100vh-80px)]">
+        {/* Left Rail */}
+        <aside className="w-64 border-r border-border bg-card/50 p-6">
+          <div className="space-y-4">
+            <h2 className="font-semibold text-lg mb-6">Setup Steps</h2>
+            {steps.map((step, index) => {
+              const isCompleted = state.completedSteps.includes(step.id);
+              const isCurrent = step.id === state.currentStep;
+              const isPast = step.id < state.currentStep;
+              
+              return (
+                <div key={step.id} className="flex items-center space-x-3">
+                  <div className={`
+                    w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0
+                    ${isCompleted 
+                      ? 'bg-success text-success-foreground' 
+                      : isCurrent
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                    }
+                  `}>
+                    {isCompleted ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      step.id
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className={`text-sm font-medium ${
+                      isCurrent ? 'text-foreground' : isCompleted || isPast ? 'text-muted-foreground' : 'text-muted-foreground/60'
+                    }`}>
+                      {step.title}
+                    </div>
+                    {isCurrent && (
+                      <div className="text-xs text-primary font-medium">Current step</div>
+                    )}
+                    {isCompleted && (
+                      <div className="text-xs text-success">Completed</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      </main>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="font-heading text-2xl font-bold mb-2">{currentStep.title}</h2>
+            </div>
+
+            <Card className="card-premium">
+              <CardContent className="p-8">
+                <StepComponent
+                  data={state.data}
+                  onUpdate={updateStepData}
+                  onComplete={() => completeStep(state.currentStep)}
+                  completed={state.completedSteps.includes(state.currentStep)}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Navigation */}
+            <div className="flex justify-between mt-8">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                disabled={!canGoBack()}
+                className="flex items-center"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+
+              <Button
+                onClick={handleNext}
+                disabled={!canGoNext() || isLoading}
+                className="flex items-center btn-hero"
+              >
+                {state.currentStep === steps.length ? 'Complete Application' : 'Continue'}
+                {state.currentStep < steps.length && (
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

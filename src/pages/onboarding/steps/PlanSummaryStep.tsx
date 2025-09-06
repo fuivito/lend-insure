@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Sheet,
   SheetContent,
@@ -18,7 +19,8 @@ import {
   Calendar,
   CreditCard,
   Calculator,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { mockPlan } from '@/lib/fixtures';
 
@@ -45,6 +47,11 @@ export function PlanSummaryStep({ data, onUpdate, onComplete, completed }: PlanS
 
   const calculateInterest = () => {
     return calculateTotalCost() - plan.premiumAmount + (plan.deposit || 0);
+  };
+
+  const calculateAnnualCost = () => {
+    // Annual cost would be premium minus any discount for paying upfront
+    return plan.premiumAmount - (plan.deposit || 0);
   };
 
   return (
@@ -172,15 +179,56 @@ export function PlanSummaryStep({ data, onUpdate, onComplete, completed }: PlanS
           {/* APR */}
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold">Representative APR</div>
-                <div className="text-sm text-muted-foreground">
-                  Annual Percentage Rate of charge
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="font-semibold">Representative APR</div>
+                  <div className="text-sm text-muted-foreground">
+                    Annual Percentage Rate of charge
+                  </div>
                 </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">
+                        The APR shows the total cost of your credit as a yearly rate. 
+                        It includes the interest rate and other charges, helping you 
+                        compare different credit offers.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <div className="text-2xl font-bold">{plan.apr}%</div>
             </div>
           </div>
+
+          {/* Annual vs Monthly Comparison */}
+          <Card className="border-warning/20 bg-warning-light/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Payment Comparison</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-3 bg-background rounded border">
+                  <div className="text-sm text-muted-foreground">Pay Monthly (Current Plan)</div>
+                  <div className="text-lg font-bold text-primary">£{calculateTotalCost().toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">{plan.installments} payments of £{plan.monthlyAmount}</div>
+                </div>
+                <div className="p-3 bg-background rounded border">
+                  <div className="text-sm text-muted-foreground">Pay Annually</div>
+                  <div className="text-lg font-bold text-success">£{calculateAnnualCost().toLocaleString()}</div>
+                  <div className="text-xs text-success">You'd save £{calculateInterest().toLocaleString()}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                <AlertTriangle className="h-3 w-3 inline mr-1" />
+                Monthly payments usually cost more than paying annually due to interest charges
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Credit Provider */}
           <div className="p-4 bg-accent rounded-lg">

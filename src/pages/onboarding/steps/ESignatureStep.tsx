@@ -1,17 +1,21 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   PenTool, 
   CheckCircle, 
-  FileText,
-  Calendar,
+  FileText, 
+  Clock,
   MapPin,
-  Shield,
-  AlertTriangle
+  Wifi,
+  RotateCcw,
+  Trash2,
+  Type
 } from 'lucide-react';
 
 interface ESignatureStepProps {
@@ -23,12 +27,30 @@ interface ESignatureStepProps {
 
 export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESignatureStepProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSigned, setHasSigned] = useState(false);
-  const [disclosuresAccepted, setDisclosuresAccepted] = useState(false);
+  const [isSigned, setIsSigned] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [secci, setSecci] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [timestamp] = useState(new Date().toLocaleString());
+  const [ipAddress] = useState('192.168.1.1'); // Mock IP
+  const [signatureType, setSignatureType] = useState<'draw' | 'type'>('draw');
+  const [typedSignature, setTypedSignature] = useState('');
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  useEffect(() => {
+    // Initialize canvas
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#1e40af';
+      }
+    }
+  }, []);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -37,13 +59,17 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
     if (!ctx) return;
 
     setIsDrawing(true);
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
-
+    
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -51,13 +77,13 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1e40af';
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
     ctx.stroke();
     
-    setHasSigned(true);
+    setIsSigned(true);
   };
 
   const stopDrawing = () => {
@@ -66,21 +92,47 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
 
   const clearSignature = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSigned(false);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    setIsSigned(false);
+    setTypedSignature('');
   };
 
+  const undoLastStroke = () => {
+    // In a real implementation, this would undo the last stroke
+    // For now, we'll just clear the signature
+    clearSignature();
+  };
+
+  const applyTypedSignature = () => {
+    if (!typedSignature.trim()) return;
+    
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '32px cursive';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.fillText(typedSignature, canvas.width / 2, canvas.height / 2 + 10);
+        setIsSigned(true);
+      }
+    }
+  };
+
+  const canComplete = termsAccepted && secci && (isSigned || (signatureType === 'type' && typedSignature.trim()));
+
   const handleSubmit = () => {
-    if (hasSigned && disclosuresAccepted && termsAccepted) {
+    if (canComplete) {
       const signatureData = {
         signed: true,
         timestamp: new Date().toISOString(),
-        ip: '192.168.1.1' // Mock IP
+        ipAddress,
+        signatureType,
+        signatureData: signatureType === 'type' ? typedSignature : 'canvas_signature'
       };
       
       onUpdate({ signature: signatureData });
@@ -88,149 +140,37 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
     }
   };
 
-  const canComplete = hasSigned && disclosuresAccepted && termsAccepted;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="esignature-step">
       <div className="text-center mb-8">
         <PenTool className="h-12 w-12 text-primary mx-auto mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Digital Signature</h2>
+        <h2 className="text-xl font-semibold mb-2">Digital Signature & Final Agreements</h2>
         <p className="text-muted-foreground">
           Complete your application by signing the credit agreement electronically
         </p>
       </div>
 
-      {/* Signature Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Signature Details</CardTitle>
-          <CardDescription>
-            Your electronic signature will be legally binding
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <div className="font-medium">Date & Time</div>
-                <div className="text-sm text-muted-foreground">
-                  {new Date().toLocaleString('en-GB')}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <div className="font-medium">Location</div>
-                <div className="text-sm text-muted-foreground">
-                  IP: 192.168.1.1 (Mock)
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 bg-muted rounded-lg">
-            <div className="flex items-center gap-3">
-              <Shield className="h-5 w-5 text-success" />
-              <div>
-                <div className="font-medium">Secure & Verified</div>
-                <div className="text-sm text-muted-foreground">
-                  Your signature is encrypted and tamper-proof
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Important Disclosures */}
-      <Card className="border-warning/20 bg-warning-light">
+      <Card className="border-warning/20 bg-warning-light/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            Important Disclosures
-          </CardTitle>
+          <CardTitle className="text-warning">Important Cost Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-warning/90 space-y-3">
-            <div>
-              <h4 className="font-semibold mb-1">Cost of Credit</h4>
+            <div className="p-3 bg-background rounded border-l-4 border-l-warning">
+              <p className="font-semibold mb-1">Monthly payments usually cost more than paying annually</p>
               <p>
-                Paying monthly usually costs more than paying annually upfront. 
-                The total amount payable is £1,140 compared to the premium of £1,200, 
-                representing £140 in interest charges at 15.9% APR.
+                Total amount payable: <strong>£1,140</strong> vs Premium amount: <strong>£1,200</strong><br />
+                Interest charges: <strong>£140</strong> at <strong>15.9% APR</strong>
               </p>
             </div>
             
             <div>
-              <h4 className="font-semibold mb-1">Credit Provider</h4>
-              <p>
-                Credit is provided by <strong>Premium Finance Ltd</strong>, 
-                authorised and regulated by the Financial Conduct Authority. 
-                Registration number: 123456.
+              <p className="font-semibold mb-1">Credit Provider: Premium Finance Ltd</p>
+              <p className="text-xs">
+                Authorised and regulated by the Financial Conduct Authority. Registration: 123456
               </p>
             </div>
-            
-            <div>
-              <h4 className="font-semibold mb-1">Your Rights</h4>
-              <p>
-                You have the right to withdraw from this agreement within 14 days. 
-                You can settle early at any time, which may reduce the total amount payable.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start space-x-3">
-            <Checkbox
-              id="disclosures"
-              checked={disclosuresAccepted}
-              onCheckedChange={(checked) => setDisclosuresAccepted(checked === true)}
-            />
-            <label htmlFor="disclosures" className="text-sm cursor-pointer">
-              I acknowledge that I have read and understood the important disclosures above, 
-              including the cost of credit and my rights under this agreement.
-            </label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Terms & Conditions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Agreement Terms
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-sm text-muted-foreground space-y-2">
-            <p>
-              By signing below, you agree to be bound by the terms and conditions of the:
-            </p>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>Credit Agreement with Premium Finance Ltd</li>
-              <li>Direct Debit Mandate for automatic payments</li>
-              <li>Privacy Policy and Data Processing terms</li>
-              <li>LendInsure Platform Terms of Service</li>
-            </ul>
-            <p className="mt-3">
-              All documents are available for download after completion and have been 
-              provided to you during this application process.
-            </p>
-          </div>
-
-          <div className="flex items-start space-x-3">
-            <Checkbox
-              id="terms"
-              checked={termsAccepted}
-              onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-            />
-            <label htmlFor="terms" className="text-sm cursor-pointer">
-              I agree to the terms and conditions of the credit agreement and 
-              associated documents listed above.
-            </label>
           </div>
         </CardContent>
       </Card>
@@ -238,39 +178,176 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
       {/* Signature Pad */}
       <Card>
         <CardHeader>
-          <CardTitle>Electronic Signature</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <PenTool className="h-5 w-5" />
+            Electronic Signature
+          </CardTitle>
           <CardDescription>
-            Sign your name in the box below using your mouse or finger
+            Please sign below to complete your application
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={signatureType} onValueChange={(v) => setSignatureType(v as 'draw' | 'type')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="draw" className="flex items-center gap-2">
+                <PenTool className="h-4 w-4" />
+                Draw Signature
+              </TabsTrigger>
+              <TabsTrigger value="type" className="flex items-center gap-2" data-testid="type-signature-tab">
+                <Type className="h-4 w-4" />
+                Type Signature
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="draw" className="mt-4">
+              <div className="border-2 border-dashed border-border rounded-lg p-4 bg-muted/30">
+                <canvas
+                  ref={canvasRef}
+                  width={600}
+                  height={200}
+                  className="w-full border rounded cursor-crosshair bg-background"
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                />
+                <div className="flex justify-between items-center mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Sign above using your mouse or touch
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={undoLastStroke}>
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Undo
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={clearSignature}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="type" className="mt-4">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="typed-signature">Type your full name</Label>
+                  <Input
+                    id="typed-signature"
+                    value={typedSignature}
+                    onChange={(e) => setTypedSignature(e.target.value)}
+                    placeholder="John Doe"
+                    className="text-lg"
+                  />
+                </div>
+                <div className="border rounded-lg p-4 bg-background min-h-[100px] flex items-center justify-center">
+                  {typedSignature ? (
+                    <span style={{ fontFamily: 'cursive', fontSize: '24px' }}>
+                      {typedSignature}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Your signature will appear here</span>
+                  )}
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={applyTypedSignature}
+                  disabled={!typedSignature.trim()}
+                >
+                  Apply Signature
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Certification Block */}
+      <Card className="border-primary/20 bg-primary-light/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            Signature Certification
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-4 md:grid-cols-2 text-sm">
+            <div>
+              <div className="font-medium text-muted-foreground">Timestamp</div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                {timestamp}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-muted-foreground">IP Address</div>
+              <div className="flex items-center gap-2">
+                <Wifi className="h-4 w-4" />
+                {ipAddress}
+              </div>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground pt-2 border-t">
+            Your signature, timestamp, and IP address are recorded for security and legal compliance purposes.
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Legal Checkboxes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Legal Agreements</CardTitle>
+          <CardDescription>
+            Please review and accept the following agreements
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="border-2 border-dashed border-border rounded-lg p-4">
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={150}
-              className="w-full h-32 border border-border rounded bg-background cursor-crosshair"
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="terms"
+              checked={termsAccepted}
+              onCheckedChange={(checked) => setTermsAccepted(checked === true)}
             />
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-sm text-muted-foreground">
-                Sign above
-              </span>
-              <Button variant="outline" size="sm" onClick={clearSignature}>
-                Clear
-              </Button>
+            <div className="space-y-1 leading-none">
+              <label htmlFor="terms" className="text-sm font-medium cursor-pointer">
+                I accept the Terms and Conditions *
+              </label>
+              <p className="text-sm text-muted-foreground">
+                I have read, understood and agree to be bound by the{' '}
+                <a href="/legal/terms" className="text-primary hover:underline">
+                  Terms and Conditions
+                </a>{' '}
+                and{' '}
+                <a href="/legal/privacy" className="text-primary hover:underline">
+                  Privacy Policy
+                </a>
+              </p>
             </div>
           </div>
-
-          {hasSigned && (
-            <div className="flex items-center gap-2 text-success">
-              <CheckCircle className="h-4 w-4" />
-              <span className="text-sm">Signature captured</span>
+          
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="secci"
+              checked={secci}
+              onCheckedChange={(checked) => setSecci(checked === true)}
+            />
+            <div className="space-y-1 leading-none">
+              <label htmlFor="secci" className="text-sm font-medium cursor-pointer">
+                I acknowledge receipt of SECCI document *
+              </label>
+              <p className="text-sm text-muted-foreground">
+                I confirm I have received and read the{' '}
+                <a href="/legal/secci" className="text-primary hover:underline">
+                  Standard European Consumer Credit Information (SECCI)
+                </a>{' '}
+                document which contains important information about this credit agreement.
+              </p>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -287,7 +364,7 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
         
         {!canComplete && (
           <p className="text-sm text-muted-foreground mt-2">
-            Please complete all sections above to finish your application
+            Please complete signature and accept all agreements to finish
           </p>
         )}
       </div>
@@ -300,7 +377,7 @@ export function ESignatureStep({ data, onUpdate, onComplete, completed }: ESigna
         </p>
         <p>
           This agreement is governed by the laws of England and Wales. 
-          Any disputes will be subject to the exclusive jurisdiction of the English courts.
+          Credit is subject to status and affordability checks. You have 14 days to withdraw.
         </p>
       </div>
     </div>
