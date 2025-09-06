@@ -3,27 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  CreditCard, 
-  Calendar, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle,
-  TrendingUp,
-  FileText,
-  HelpCircle,
-  ExternalLink,
-  Download
-} from 'lucide-react';
+import { CreditCard, Calendar, Clock, CheckCircle, AlertCircle, TrendingUp, FileText, HelpCircle, ExternalLink, Download } from 'lucide-react';
 import { mockPayments, mockPlan } from '@/lib/fixtures';
-
 export default function CustomerDashboard() {
   const nextPayment = mockPayments.find(p => p.status === 'pending');
   const paidPayments = mockPayments.filter(p => p.status === 'paid').length;
   const totalPayments = mockPayments.length;
-  const progressPercentage = (paidPayments / totalPayments) * 100;
-  const remainingBalance = mockPlan.totalAmount - (paidPayments * mockPlan.monthlyAmount);
-
+  const progressPercentage = paidPayments / totalPayments * 100;
+  const remainingBalance = mockPlan.totalAmount - paidPayments * mockPlan.monthlyAmount;
   const getDaysUntilPayment = () => {
     if (!nextPayment) return 0;
     const today = new Date();
@@ -31,11 +18,8 @@ export default function CustomerDashboard() {
     const diffTime = paymentDate.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
-
   const daysUntil = getDaysUntilPayment();
-
-  return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+  return <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold text-foreground mb-2">
@@ -48,25 +32,24 @@ export default function CustomerDashboard() {
 
       <div className="grid gap-6">
         {/* Hero Section - Next Payment */}
-        {nextPayment && (
-          <Card className="card-hero">
+        {nextPayment && <Card className="card-hero">
             <CardContent className="p-8">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div className="mb-6 lg:mb-0">
-                  <h2 className="font-heading text-2xl font-bold mb-2">
+                <div className="mb-6 lg:mb-0 mx-0">
+                  <h2 className="font-heading text-2xl font-bold mb-2 text-slate-50">
                     Next Payment Due
                   </h2>
-                  <div className="text-4xl font-bold mb-4">
+                  <div className="text-4xl font-bold mb-4 bg-gray-50 px-0 py-0 mx-[190px]">
                     £{nextPayment.amount.toLocaleString()}
                   </div>
                   <div className="flex items-center gap-4 text-primary-foreground/80">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-5 w-5" />
                       <span>{new Date(nextPayment.dueDate).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })}</span>
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="h-5 w-5" />
@@ -79,14 +62,13 @@ export default function CustomerDashboard() {
                   <Button variant="secondary" className="bg-white/20 text-white border-white/20 hover:bg-white/30">
                     Pay Early
                   </Button>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button variant="outline" className="border-white/20 text-white bg-transparent">
                     Change Payment Method
                   </Button>
                 </div>
               </div>
             </CardContent>
-          </Card>
-        )}
+          </Card>}
 
         {/* Status & Progress */}
         <div className="grid md:grid-cols-2 gap-6">
@@ -179,8 +161,7 @@ export default function CustomerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockPayments.filter(p => p.status === 'pending').slice(0, 3).map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-4 bg-accent rounded-lg">
+              {mockPayments.filter(p => p.status === 'pending').slice(0, 3).map(payment => <div key={payment.id} className="flex items-center justify-between p-4 bg-accent rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center">
                       <CreditCard className="h-5 w-5" />
@@ -189,16 +170,15 @@ export default function CustomerDashboard() {
                       <div className="font-medium">£{payment.amount.toLocaleString()}</div>
                       <div className="text-sm text-muted-foreground">
                         {new Date(payment.dueDate).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
                       </div>
                     </div>
                   </div>
                   <Badge variant="outline">Scheduled</Badge>
-                </div>
-              ))}
+                </div>)}
             </div>
           </CardContent>
         </Card>
@@ -285,6 +265,5 @@ export default function CustomerDashboard() {
           </Card>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }
