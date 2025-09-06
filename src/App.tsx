@@ -21,26 +21,28 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Index />} />
-          <Route path="/start" element={<StartPage />} />
-          
-          {/* App routes (authenticated) */}
-          <Route path="/app" element={<AppShell />}>
-            <Route path="onboarding" element={<OnboardingWizard />} />
-            <Route path="dashboard" element={<CustomerDashboard />} />
-            <Route path="payments" element={<PaymentHistory />} />
-            <Route path="documents" element={<Documents />} />
-            <Route path="support" element={<Support />} />
-            <Route path="broker/*" element={<BrokerComingSoon />} />
-          </Route>
-          
-          {/* Catch-all route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <div className="min-h-screen w-full overflow-x-hidden">
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Index />} />
+            <Route path="/start" element={<StartPage />} />
+            
+            {/* App routes (authenticated) */}
+            <Route path="/app" element={<AppShell />}>
+              <Route path="onboarding" element={<OnboardingWizard />} />
+              <Route path="dashboard" element={<CustomerDashboard />} />
+              <Route path="payments" element={<PaymentHistory />} />
+              <Route path="documents" element={<Documents />} />
+              <Route path="support" element={<Support />} />
+              <Route path="broker/*" element={<BrokerComingSoon />} />
+            </Route>
+            
+            {/* Catch-all route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </div>
     </TooltipProvider>
   </QueryClientProvider>
 );

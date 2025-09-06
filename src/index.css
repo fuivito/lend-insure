@@ -255,3 +255,7 @@
     }
   }
 }
+
+html, body { overflow-x: hidden; }
+img, video, canvas, svg { max-width: 100%; height: auto; }
+.container, .wrapper { max-width: 100%; }
