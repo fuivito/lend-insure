@@ -38,13 +38,13 @@ export default function CustomerDashboard() {
     return <DashboardSkeleton />;
   }
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-7xl">
       {/* Page Header */}
-      <div className="mb-8 animate-fade-in">
-        <h1 className="font-heading text-3xl font-bold text-foreground mb-2">
+      <div className="mb-6 sm:mb-8 animate-fade-in">
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-2">
           Welcome back, John
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm sm:text-base text-muted-foreground">
           Here's an overview of your premium finance plan
         </p>
       </div>
@@ -59,7 +59,7 @@ export default function CustomerDashboard() {
         )}
 
         {/* Status & Progress */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Payment Progress */}
           <PaymentProgressCard />
 
@@ -101,7 +101,7 @@ export default function CustomerDashboard() {
         {/* Upcoming Payments */}
         <Card className="card-premium animate-fade-in">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
@@ -109,9 +109,9 @@ export default function CustomerDashboard() {
                 </CardTitle>
                 <CardDescription>Next 3 scheduled payments</CardDescription>
               </div>
-              <Button variant="outline" size="sm" className="hover-scale">
+              <Button variant="outline" size="sm" className="hover-scale w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-2" />
-                Add to Calendar
+                <span className="sm:inline">Add to Calendar</span>
               </Button>
             </div>
           </CardHeader>
@@ -120,16 +120,16 @@ export default function CustomerDashboard() {
               {mockPayments.filter(p => p.status === 'pending').slice(0, 3).map((payment, index) => (
                 <div 
                   key={payment.id} 
-                  className="flex items-center justify-between p-4 bg-accent rounded-lg hover-scale"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-accent rounded-lg hover-scale"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center">
-                      <CreditCard className="h-5 w-5" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center">
+                      <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
                     <div>
-                      <div className="font-medium">£{payment.amount.toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-sm sm:text-base">£{payment.amount.toLocaleString()}</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground">
                         {new Date(payment.dueDate).toLocaleDateString('en-GB', {
                           day: 'numeric',
                           month: 'short',
@@ -138,7 +138,7 @@ export default function CustomerDashboard() {
                       </div>
                     </div>
                   </div>
-                  <Badge variant="outline">Scheduled</Badge>
+                  <Badge variant="outline" className="text-xs self-start sm:self-auto">Scheduled</Badge>
                 </div>
               ))}
             </div>
@@ -147,22 +147,24 @@ export default function CustomerDashboard() {
 
         {/* Help Strip */}
         <Card className="border-warning/20 bg-warning-light animate-fade-in">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <HelpCircle className="h-6 w-6 text-warning" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-warning mb-1">
-                  Struggling to make payments?
-                </h3>
-                <p className="text-sm text-warning/90">
-                  We're here to help. Contact us early if you're having difficulties - we have support options available.
-                </p>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex items-start gap-3 flex-1">
+                <HelpCircle className="h-5 w-5 sm:h-6 sm:w-6 text-warning mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-warning mb-1 text-sm sm:text-base">
+                    Struggling to make payments?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-warning/90">
+                    We're here to help. Contact us early if you're having difficulties - we have support options available.
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="border-warning/20 text-warning hover:bg-warning/10 hover-scale">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 w-full sm:w-auto">
+                <Button variant="outline" size="sm" className="border-warning/20 text-warning hover:bg-warning/10 hover-scale w-full sm:w-auto text-xs sm:text-sm">
                   View Support Options
                 </Button>
-                <Button variant="outline" size="sm" className="border-warning/20 text-warning hover:bg-warning/10 hover-scale">
+                <Button variant="outline" size="sm" className="border-warning/20 text-warning hover:bg-warning/10 hover-scale w-full sm:w-auto text-xs sm:text-sm">
                   Contact Us
                 </Button>
               </div>
@@ -171,7 +173,7 @@ export default function CustomerDashboard() {
         </Card>
 
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <Card className="card-premium animate-fade-in hover-scale">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
