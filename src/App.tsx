@@ -13,6 +13,7 @@ import PaymentHistory from "./pages/customer/PaymentHistory";
 import Documents from "./pages/customer/Documents";
 import Support from "./pages/customer/Support";
 import BrokerComingSoon from "./pages/broker/BrokerComingSoon";
+import Portfolio from "./components/customer/Portfolio";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
             {/* App routes (authenticated) */}
             <Route path="/app" element={<AppShell />}>
               <Route path="onboarding" element={<OnboardingWizard />} />
+              <Route path="customer" element={<Portfolio />} />
               <Route path="dashboard" element={<CustomerDashboard />} />
               <Route path="payments" element={<PaymentHistory />} />
               <Route path="documents" element={<Documents />} />
