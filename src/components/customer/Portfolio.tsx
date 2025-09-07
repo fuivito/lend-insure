@@ -128,11 +128,18 @@ const Portfolio = () => {
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-        <p className="text-muted-foreground">
-          Overview of all your financing plans and payment schedules
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
+          <p className="text-muted-foreground">
+            Overview of all your financing plans and payment schedules
+          </p>
+        </div>
+        <Link to="/start?token=demo">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
+            Start New Financing
+          </Button>
+        </Link>
       </div>
 
       {/* At a glance stats */}

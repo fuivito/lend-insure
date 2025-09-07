@@ -15,7 +15,9 @@ export function AppShell() {
 
   // Define valid customer routes that don't require onboarding redirect
   const validCustomerRoutes = ['/app/customer', '/app/payments', '/app/documents', '/app/support'];
-  const isValidCustomerRoute = validCustomerRoutes.some(route => location.pathname === route);
+  const isValidCustomerRoute = validCustomerRoutes.some(route => 
+    location.pathname === route || location.pathname.startsWith('/app/customer/agreements/')
+  );
 
   // Redirect to onboarding if not completed and not on a valid customer route
   if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding') && !isValidCustomerRoute) {
