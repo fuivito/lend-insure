@@ -14,7 +14,7 @@ export function AppShell() {
   const navigate = useNavigate();
 
   // Define valid customer routes that don't require onboarding redirect
-  const validCustomerRoutes = ['/app/dashboard', '/app/payments', '/app/documents', '/app/support'];
+  const validCustomerRoutes = ['/app/customer', '/app/payments', '/app/documents', '/app/support'];
   const isValidCustomerRoute = validCustomerRoutes.some(route => location.pathname === route);
 
   // Redirect to onboarding if not completed and not on a valid customer route

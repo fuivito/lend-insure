@@ -86,7 +86,7 @@ export default function OnboardingWizard() {
       try {
         authService.setOnboardingCompleted();
         localStorage.removeItem('onboarding-state');
-        navigate('/app/dashboard');
+        navigate('/app/customer');
       } catch (error) {
         console.error('Failed to complete onboarding:', error);
         setIsLoading(false);

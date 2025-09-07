@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 const customerNavItems = [
-  { title: 'Dashboard', url: '/app/dashboard', icon: Home },
+  { title: 'Dashboard', url: '/app/customer', icon: Home },
   { title: 'Payments', url: '/app/payments', icon: CreditCard },
   { title: 'Documents', url: '/app/documents', icon: FileText },
   { title: 'Support', url: '/app/support', icon: HelpCircle },

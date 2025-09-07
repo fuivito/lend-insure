@@ -30,7 +30,7 @@ const Index = () => {
               <Link to="/support" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Support</Link>
             </div>
             <div className="flex items-center space-x-3">
-              <Link to="/app/dashboard">
+              <Link to="/app/customer">
                 <Button variant="outline" size="sm">Customer Login</Button>
               </Link>
               <Link to="/app/broker">
@@ -55,7 +55,7 @@ const Index = () => {
                     <Link to="/support" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Support</Link>
                   </div>
                   <div className="border-t pt-6 flex flex-col space-y-3">
-                    <Link to="/app/dashboard">
+                    <Link to="/app/customer">
                       <Button variant="outline" className="w-full">Customer Login</Button>
                     </Link>
                     <Link to="/app/broker">
