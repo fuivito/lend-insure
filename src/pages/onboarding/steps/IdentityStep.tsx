@@ -82,9 +82,14 @@ export function IdentityStep({ data, onUpdate, onComplete, completed }: Identity
   };
 
   // Update parent component when identity changes
+  // Update parent state when identity changes, but avoid infinite loops
   useEffect(() => {
-    onUpdate({ identity });
-  }, [identity, onUpdate]);
+    const timeoutId = setTimeout(() => {
+      onUpdate({ identity });
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [identity.name, identity.email, identity.phone, identity.address?.line1, identity.address?.city, identity.address?.postcode, identity.address?.country]);
 
   return (
     <div className="space-y-6">

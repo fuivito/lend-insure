@@ -34,14 +34,15 @@ export function AppShell() {
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`
+      {/* Sidebar - responsive layout */}
+      <aside className={`
         fixed lg:static inset-y-0 left-0 z-50 
-        w-64 transform transition-transform duration-200 ease-in-out lg:translate-x-0
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        w-64 transform transition-transform duration-200 ease-in-out 
+        lg:translate-x-0 lg:block
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <Sidebar />
-      </div>
+      </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
