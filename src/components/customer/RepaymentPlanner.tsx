@@ -70,40 +70,81 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
     };
   }, [agreement.outstanding]);
 
+  // Helper functions for the rebalancing algorithm
+  const roundPounds = (n: number) => Math.max(0, Math.round(n || 0));
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const sumUpcomingExcept = (arr: PaymentScheduleItem[], omit?: string) =>
+    arr.filter(r => r.isEditable && r.id !== omit).reduce((a, r) => a + (r.amount || 0), 0);
+
   const updatePaymentAmount = (paymentId: string, newAmount: number) => {
-    const roundedAmount = Math.max(0, Math.round(newAmount)); // Round to £1 steps, min 0
-    
     setPaymentSchedule(prev => {
       const updated = [...prev];
       const targetIndex = updated.findIndex(p => p.id === paymentId && p.isEditable);
       
       if (targetIndex === -1) return prev;
       
-      // Set the target payment amount
-      updated[targetIndex].amount = roundedAmount;
+      // Get upcoming payment indices and identify remainder row (last upcoming)
+      const upcomingRows = updated.filter(r => r.isEditable);
+      const remainderRow = upcomingRows[upcomingRows.length - 1];
+      const isRemainderRow = paymentId === remainderRow.id;
       
-      // Get all editable payments after the current one
-      const subsequentEditablePayments = updated.slice(targetIndex + 1).filter(p => p.isEditable);
+      // Don't allow manual editing of the remainder row
+      if (isRemainderRow) return prev;
       
-      if (subsequentEditablePayments.length > 0) {
-        // Calculate total already allocated (including paid amounts and current payment)
-        const totalAllocated = updated.slice(0, targetIndex + 1).reduce((sum, p) => sum + p.amount, 0);
+      // A) Round to whole pounds, clamp >= 0
+      let next = roundPounds(newAmount);
+      
+      // B) Don't let this row exceed what's feasible (others must stay >= 0)
+      const sumOthers = sumUpcomingExcept(updated, paymentId);
+      const hardMaxForI = Math.max(0, round2(agreement.outstanding - sumOthers));
+      next = Math.min(next, hardMaxForI);
+      
+      // C) Apply to target row
+      updated[targetIndex].amount = next;
+      
+      // D) Calculate what needs to be redistributed
+      const currentSum = updated.filter(r => r.isEditable).reduce((a, r) => a + r.amount, 0);
+      let delta = round2(agreement.outstanding - currentSum);
+      
+      // E) Get subsequent rows to redistribute to (excluding remainder)
+      const subsequentRows = updated
+        .slice(targetIndex + 1)
+        .filter(r => r.isEditable && r.id !== remainderRow.id);
+      
+      if (subsequentRows.length > 0 && delta !== 0) {
+        let remaining = delta;
+        const sign = delta > 0 ? 1 : -1;
+        const count = subsequentRows.length;
         
-        // Calculate remaining balance to distribute
-        const remainingBalance = agreement.outstanding - totalAllocated;
+        // Base even distribution in whole pounds
+        const base = Math.trunc(Math.abs(remaining) / count);
+        const extra = Math.abs(remaining) % count;
         
-        // Distribute remaining balance evenly across subsequent payments
-        const baseAmount = Math.floor(remainingBalance / subsequentEditablePayments.length);
-        const remainder = remainingBalance % subsequentEditablePayments.length;
-        
-        subsequentEditablePayments.forEach((payment, index) => {
-          const paymentIndex = updated.findIndex(p => p.id === payment.id);
-          if (paymentIndex !== -1) {
-            // First 'remainder' payments get an extra £1 to handle rounding
-            const amount = baseAmount + (index < remainder ? 1 : 0);
-            updated[paymentIndex].amount = Math.max(0, amount);
-          }
+        // Apply base amount to all subsequent rows
+        subsequentRows.forEach(row => {
+          const change = sign * base;
+          const candidate = row.amount + change;
+          row.amount = Math.max(0, roundPounds(candidate));
         });
+        
+        // Distribute leftover £1 increments
+        let extraCount = extra;
+        for (const row of subsequentRows) {
+          if (extraCount <= 0) break;
+          const candidate = row.amount + sign * 1;
+          if (candidate >= 0) {
+            row.amount = roundPounds(candidate);
+            extraCount--;
+          }
+        }
+      }
+      
+      // F) Set auto-remainder row to balance exactly
+      const nonRemainderSum = sumUpcomingExcept(updated, remainderRow.id);
+      const remainderValue = round2(agreement.outstanding - nonRemainderSum);
+      const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
+      if (remainderIndex !== -1) {
+        updated[remainderIndex].amount = Math.max(0, remainderValue);
       }
       
       return updated;
@@ -115,30 +156,30 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
   };
 
   const handleReset = () => {
-    setPaymentSchedule(generatePaymentSchedule());
+    setPaymentSchedule(prev => {
+      const reset = generatePaymentSchedule();
+      const upcomingRows = reset.filter(r => r.isEditable);
+      
+      if (upcomingRows.length > 0) {
+        // Even distribution in whole pounds with remainder handling
+        const baseAmount = Math.floor(agreement.outstanding / upcomingRows.length);
+        const remainder = agreement.outstanding % upcomingRows.length;
+        
+        upcomingRows.forEach((row, index) => {
+          if (index < upcomingRows.length - 1) {
+            // Non-remainder rows get base + potential extra £1
+            row.amount = baseAmount + (index < remainder ? 1 : 0);
+          } else {
+            // Final row gets exact remainder to balance
+            const sumOthers = upcomingRows.slice(0, -1).reduce((sum, r) => sum + r.amount, 0);
+            row.amount = round2(agreement.outstanding - sumOthers);
+          }
+        });
+      }
+      
+      return reset;
+    });
     toast.info('Repayment plan reset to original schedule.');
-  };
-
-  const distributeEvenly = () => {
-    const editablePayments = paymentSchedule.filter(p => p.isEditable);
-    if (editablePayments.length === 0) return;
-    
-    const baseAmount = Math.floor(agreement.outstanding / editablePayments.length);
-    const remainder = agreement.outstanding % editablePayments.length;
-    
-    setPaymentSchedule(prev =>
-      prev.map((payment, index) => {
-        if (payment.isEditable) {
-          const editableIndex = prev.slice(0, index).filter(p => p.isEditable).length;
-          // First 'remainder' payments get an extra £1 to handle rounding
-          const amount = baseAmount + (editableIndex < remainder ? 1 : 0);
-          return { ...payment, amount };
-        }
-        return payment;
-      })
-    );
-    
-    toast.success('Payments distributed evenly across remaining instalments.');
   };
 
   return (
@@ -155,10 +196,6 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={distributeEvenly}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Distribute Evenly
-            </Button>
             <Button variant="outline" size="sm" onClick={handleReset}>
               Reset
             </Button>
@@ -219,43 +256,52 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
 
                   <div className="flex items-center gap-3">
                     {payment.isEditable ? (
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={`amount-${payment.id}`} className="sr-only">
-                          Payment Amount
-                        </Label>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">£</span>
-                          <Input
-                            id={`amount-${payment.id}`}
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={payment.amount}
-                            onChange={(e) => updatePaymentAmount(payment.id, parseFloat(e.target.value) || 0)}
-                            className="w-24 text-right"
-                          />
-                        </div>
-                        <div className="w-32">
-                          <Slider
-                            value={[payment.amount]}
-                            onValueChange={([value]) => updatePaymentAmount(payment.id, value)}
-                            max={(() => {
-                              // Calculate max possible amount for this payment
-                              const currentPaymentIndex = paymentSchedule.findIndex(p => p.id === payment.id);
-                              const paymentsAfter = paymentSchedule.slice(currentPaymentIndex + 1).filter(p => p.isEditable);
-                              const totalPaidAndBefore = paymentSchedule
-                                .slice(0, currentPaymentIndex)
-                                .reduce((sum, p) => sum + p.amount, 0);
-                              
-                              // Max is outstanding minus what's already allocated minus minimum £0 for each subsequent payment
-                              return Math.max(1, agreement.outstanding - totalPaidAndBefore);
-                            })()}
-                            min={0}
-                            step={1}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
+                      (() => {
+                        const upcomingRows = paymentSchedule.filter(r => r.isEditable);
+                        const remainderRow = upcomingRows[upcomingRows.length - 1];
+                        const isRemainderRow = payment.id === remainderRow.id;
+                        
+                        return isRemainderRow ? (
+                          // Auto-remainder row (disabled with "Auto" chip)
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              £{payment.amount.toFixed(2)}
+                            </span>
+                            <Badge variant="secondary" className="text-xs">
+                              Auto
+                            </Badge>
+                          </div>
+                        ) : (
+                          // Editable row
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`amount-${payment.id}`} className="sr-only">
+                              Payment Amount
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">£</span>
+                              <Input
+                                id={`amount-${payment.id}`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={payment.amount}
+                                onChange={(e) => updatePaymentAmount(payment.id, Number(e.target.value) || 0)}
+                                className="w-24 text-right"
+                              />
+                            </div>
+                            <div className="w-32">
+                              <Slider
+                                value={[payment.amount]}
+                                onValueChange={([value]) => updatePaymentAmount(payment.id, value)}
+                                max={Math.max(payment.amount + 500, agreement.outstanding)}
+                                min={0}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()
                     ) : (
                       <div className="flex items-center gap-2">
                         <Lock className="h-4 w-4 text-muted-foreground" />
