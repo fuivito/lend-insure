@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import { AppShell } from "./components/layout/AppShell";
 import OnboardingWizard from "./pages/onboarding/OnboardingWizard";
 import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import AgreementDetails from "./pages/customer/AgreementDetails";
 import PaymentHistory from "./pages/customer/PaymentHistory";
 import Documents from "./pages/customer/Documents";
 import Support from "./pages/customer/Support";
@@ -33,7 +34,7 @@ const App = () => (
             <Route path="/app" element={<AppShell />}>
               <Route path="onboarding" element={<OnboardingWizard />} />
               <Route path="customer" element={<Portfolio />} />
-              <Route path="customer/agreements/:id/overview" element={<CustomerDashboard />} />
+              <Route path="customer/agreements/:id/overview" element={<AgreementDetails />} />
               <Route path="payments" element={<PaymentHistory />} />
               <Route path="documents" element={<Documents />} />
               <Route path="support" element={<Support />} />
