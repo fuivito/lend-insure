@@ -63,16 +63,11 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
 
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleItem[]>(generatePaymentSchedule());
   
-  const { outstandingBalance, isBalanced } = useMemo(() => {
-    const upcomingPayments = paymentSchedule.filter(p => p.isEditable);
-    const total = upcomingPayments.reduce((sum, p) => sum + p.amount, 0);
-    const balanced = Math.abs(total - agreement.outstanding) < 1; // Account for £1 rounding
-    
+  const { outstandingBalance } = useMemo(() => {
     return {
-      outstandingBalance: agreement.outstanding,
-      isBalanced: balanced
+      outstandingBalance: agreement.outstanding
     };
-  }, [paymentSchedule, agreement.outstanding]);
+  }, [agreement.outstanding]);
 
   const updatePaymentAmount = (paymentId: string, newAmount: number) => {
     const roundedAmount = Math.max(0, Math.round(newAmount)); // Round to £1 steps, min 0
@@ -83,23 +78,31 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       
       if (targetIndex === -1) return prev;
       
-      const oldAmount = updated[targetIndex].amount;
+      // Set the target payment amount
       updated[targetIndex].amount = roundedAmount;
       
-      // Calculate difference to distribute
-      const difference = oldAmount - roundedAmount;
+      // Calculate how much has been allocated so far (including paid amounts)
+      const allocatedSoFar = updated
+        .slice(0, targetIndex + 1)
+        .reduce((sum, p) => sum + p.amount, 0);
+      
+      // Calculate remaining balance to distribute
+      const remainingBalance = agreement.outstanding - allocatedSoFar;
       
       // Get subsequent editable payments (after the changed one)
       const subsequentEditablePayments = updated.slice(targetIndex + 1).filter(p => p.isEditable);
       
-      if (subsequentEditablePayments.length > 0 && Math.abs(difference) > 0) {
-        // Distribute difference evenly across subsequent payments
-        const distributionAmount = difference / subsequentEditablePayments.length;
+      if (subsequentEditablePayments.length > 0) {
+        // Distribute remaining balance evenly across subsequent payments
+        const baseAmount = Math.floor(remainingBalance / subsequentEditablePayments.length);
+        const remainder = remainingBalance % subsequentEditablePayments.length;
         
-        subsequentEditablePayments.forEach(payment => {
+        subsequentEditablePayments.forEach((payment, index) => {
           const paymentIndex = updated.findIndex(p => p.id === payment.id);
           if (paymentIndex !== -1) {
-            updated[paymentIndex].amount = Math.max(0, Math.round(updated[paymentIndex].amount + distributionAmount));
+            // First 'remainder' payments get an extra £1 to handle rounding
+            const amount = baseAmount + (index < remainder ? 1 : 0);
+            updated[paymentIndex].amount = Math.max(0, amount);
           }
         });
       }
@@ -109,11 +112,6 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
   };
 
   const handleSave = () => {
-    if (!isBalanced) {
-      toast.error('Payment amounts must equal the outstanding balance to save.');
-      return;
-    }
-    
     toast.success('Repayment plan updated successfully!');
   };
 
@@ -237,7 +235,15 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                           <Slider
                             value={[payment.amount]}
                             onValueChange={([value]) => updatePaymentAmount(payment.id, value)}
-                            max={agreement.outstanding}
+                            max={(() => {
+                              // Calculate max possible amount for this payment
+                              const paymentIndex = paymentSchedule.findIndex(p => p.id === payment.id);
+                              const paymentsBeforeAndIncluding = paymentSchedule.slice(0, paymentIndex);
+                              const paymentsAfter = paymentSchedule.slice(paymentIndex + 1).filter(p => p.isEditable);
+                              const allocatedBefore = paymentsBeforeAndIncluding.slice(0, -1).reduce((sum, p) => sum + p.amount, 0);
+                              // Max is outstanding minus allocated before minus minimum £1 for each subsequent payment
+                              return Math.max(0, agreement.outstanding - allocatedBefore - paymentsAfter.length);
+                            })()}
                             min={0}
                             step={1}
                             className="w-full"
@@ -263,7 +269,6 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
         <div className="mt-6 flex justify-end">
           <Button 
             onClick={handleSave}
-            disabled={!isBalanced}
             className="gap-2"
           >
             <Save className="h-4 w-4" />
