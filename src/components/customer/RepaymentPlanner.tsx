@@ -22,6 +22,7 @@ interface RepaymentPlannerProps {
 }
 
 export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
+  // Auto-balancing repayment planner component
   // Generate payment schedule based on agreement data
   const generatePaymentSchedule = (): PaymentScheduleItem[] => {
     const schedule: PaymentScheduleItem[] = [];
