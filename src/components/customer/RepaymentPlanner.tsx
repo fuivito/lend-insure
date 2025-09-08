@@ -63,28 +63,49 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
 
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleItem[]>(generatePaymentSchedule());
   
-  const { totalUpcoming, outstandingBalance, isBalanced } = useMemo(() => {
+  const { outstandingBalance, isBalanced } = useMemo(() => {
     const upcomingPayments = paymentSchedule.filter(p => p.isEditable);
     const total = upcomingPayments.reduce((sum, p) => sum + p.amount, 0);
-    const balanced = Math.abs(total - agreement.outstanding) < 0.01; // Account for floating point precision
+    const balanced = Math.abs(total - agreement.outstanding) < 1; // Account for £1 rounding
     
     return {
-      totalUpcoming: total,
       outstandingBalance: agreement.outstanding,
       isBalanced: balanced
     };
   }, [paymentSchedule, agreement.outstanding]);
 
   const updatePaymentAmount = (paymentId: string, newAmount: number) => {
-    if (newAmount < 0) return; // Prevent negative amounts
+    const roundedAmount = Math.max(0, Math.round(newAmount)); // Round to £1 steps, min 0
     
-    setPaymentSchedule(prev => 
-      prev.map(payment => 
-        payment.id === paymentId && payment.isEditable
-          ? { ...payment, amount: Math.max(0, newAmount) }
-          : payment
-      )
-    );
+    setPaymentSchedule(prev => {
+      const updated = [...prev];
+      const targetIndex = updated.findIndex(p => p.id === paymentId && p.isEditable);
+      
+      if (targetIndex === -1) return prev;
+      
+      const oldAmount = updated[targetIndex].amount;
+      updated[targetIndex].amount = roundedAmount;
+      
+      // Calculate difference to distribute
+      const difference = oldAmount - roundedAmount;
+      
+      // Get subsequent editable payments (after the changed one)
+      const subsequentEditablePayments = updated.slice(targetIndex + 1).filter(p => p.isEditable);
+      
+      if (subsequentEditablePayments.length > 0 && Math.abs(difference) > 0) {
+        // Distribute difference evenly across subsequent payments
+        const distributionAmount = difference / subsequentEditablePayments.length;
+        
+        subsequentEditablePayments.forEach(payment => {
+          const paymentIndex = updated.findIndex(p => p.id === payment.id);
+          if (paymentIndex !== -1) {
+            updated[paymentIndex].amount = Math.max(0, Math.round(updated[paymentIndex].amount + distributionAmount));
+          }
+        });
+      }
+      
+      return updated;
+    });
   };
 
   const handleSave = () => {
@@ -145,34 +166,12 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       <CardContent>
         {/* Balance Summary */}
         <div className="mb-6 p-4 bg-accent rounded-lg">
-          <div className="grid sm:grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-sm text-muted-foreground">Outstanding Balance</div>
-              <div className="text-lg font-bold text-primary">
-                £{outstandingBalance.toFixed(2)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Planned Total</div>
-              <div className={`text-lg font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
-                £{totalUpcoming.toFixed(2)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Difference</div>
-              <div className={`text-lg font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
-                £{(totalUpcoming - outstandingBalance).toFixed(2)}
-              </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">Outstanding Balance</div>
+            <div className="text-lg font-bold text-primary">
+              £{outstandingBalance.toFixed(2)}
             </div>
           </div>
-          
-          {!isBalanced && (
-            <div className="mt-3 text-center">
-              <Badge variant="destructive" className="animate-pulse">
-                Payment amounts must equal outstanding balance
-              </Badge>
-            </div>
-          )}
         </div>
 
         {/* Payment Timeline */}
@@ -228,8 +227,8 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                             id={`amount-${payment.id}`}
                             type="number"
                             min="0"
-                            step="0.01"
-                            value={payment.amount.toFixed(2)}
+                            step="1"
+                            value={payment.amount}
                             onChange={(e) => updatePaymentAmount(payment.id, parseFloat(e.target.value) || 0)}
                             className="w-24 text-right"
                           />
@@ -240,7 +239,7 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                             onValueChange={([value]) => updatePaymentAmount(payment.id, value)}
                             max={agreement.outstanding}
                             min={0}
-                            step={0.01}
+                            step={1}
                             className="w-full"
                           />
                         </div>
@@ -249,7 +248,7 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                       <div className="flex items-center gap-2">
                         <Lock className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium text-muted-foreground">
-                          £{payment.amount.toFixed(2)}
+                          £{payment.amount}
                         </span>
                       </div>
                     )}
