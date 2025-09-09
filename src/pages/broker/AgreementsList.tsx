@@ -102,9 +102,8 @@ export function AgreementsList() {
     setCurrentPage(1); // Reset to first page on filter change
   };
 
-  const handleRowClick = (agreementId: string, clientId: string) => {
-    // Navigate to client detail page (since we don't have individual agreement pages yet)
-    navigate(`/app/broker/clients/${clientId}`);
+  const handleRowClick = (agreementId: string) => {
+    navigate(`/app/broker/agreements/${agreementId}`);
   };
 
   return (
@@ -169,7 +168,7 @@ export function AgreementsList() {
                 <TableRow 
                   key={agreement.id}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleRowClick(agreement.id, agreement.clientId)}
+                  onClick={() => handleRowClick(agreement.id)}
                 >
                   <TableCell className="font-medium">{agreement.id}</TableCell>
                   <TableCell>{clientMap[agreement.clientId] || 'Unknown Client'}</TableCell>

@@ -20,6 +20,7 @@ import { AddClient } from "./pages/broker/AddClient";
 import { ClientDetail } from "./pages/broker/ClientDetail";
 import { AgreementsList } from "./pages/broker/AgreementsList";
 import { CreateAgreement } from "./pages/broker/CreateAgreement";
+import { AgreementDetail } from "./pages/broker/AgreementDetail";
 import Portfolio from "./components/customer/Portfolio";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="broker/clients/:id" element={<ClientDetail />} />
               <Route path="broker/agreements" element={<AgreementsList />} />
               <Route path="broker/agreements/new" element={<CreateAgreement />} />
+              <Route path="broker/agreements/:id" element={<AgreementDetail />} />
               <Route path="broker/deals" element={<BrokerDashboard />} />
               <Route path="broker/pipeline" element={<BrokerDashboard />} />
               <Route path="broker/*" element={<BrokerComingSoon />} />
