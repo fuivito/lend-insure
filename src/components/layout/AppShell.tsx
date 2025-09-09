@@ -15,13 +15,28 @@ export function AppShell() {
 
   // Define valid customer routes that don't require onboarding redirect
   const validCustomerRoutes = ['/app/customer', '/app/payments', '/app/documents', '/app/support'];
+  const validBrokerRoutes = ['/app/broker', '/app/broker/dashboard', '/app/broker/clients', '/app/broker/deals', '/app/broker/pipeline'];
+  
   const isValidCustomerRoute = validCustomerRoutes.some(route => 
     location.pathname === route || location.pathname.startsWith('/app/customer/agreements/')
   );
+  
+  const isValidBrokerRoute = validBrokerRoutes.some(route => 
+    location.pathname === route || location.pathname.startsWith('/app/broker/')
+  );
 
-  // Redirect to onboarding if not completed and not on a valid customer route
+  // Role-based routing logic
   if (role === 'customer' && !hasCompletedOnboarding() && !location.pathname.includes('/onboarding') && !isValidCustomerRoute) {
     navigate('/app/onboarding');
+  }
+  
+  // Auto-redirect to appropriate dashboard based on role
+  if (location.pathname === '/app' || location.pathname === '/app/') {
+    if (role === 'customer') {
+      navigate('/app/customer');
+    } else if (role === 'broker') {
+      navigate('/app/broker');
+    }
   }
 
   return (
