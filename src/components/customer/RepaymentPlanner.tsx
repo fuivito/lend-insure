@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Save, Lock } from 'lucide-react';
+import { Calendar, DollarSign, Save, Lock, Plus, Minus } from 'lucide-react';
 import { Agreement } from '@/lib/demo/fixtures';
 import { toast } from 'sonner';
 
@@ -103,15 +103,10 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       // Don't allow manual editing of the remainder row
       if (isRemainderRow) return prev;
       
-      // A) Round to whole pounds, clamp >= 0 and within feasible max (based on earlier upcoming rows only)
-      const upcoming = updated.filter(r => r.isEditable);
-      const targetPos = upcoming.findIndex(r => r.id === paymentId);
-      const earlierSum = upcoming.slice(0, targetPos).reduce((a, r) => a + (r.amount || 0), 0);
-      const feasibleMaxForTarget = Math.max(0, round2(agreement.outstanding - earlierSum));
+      // A) Round to whole pounds, clamp >= 0
       const oldValue = updated[targetIndex].amount;
-      let next = roundPounds(Math.min(newAmount, feasibleMaxForTarget));
-      if (next < 0) next = 0;
-
+      let next = roundPounds(Math.max(0, newAmount));
+      
       // If no change, only refresh the remainder row and exit
       if (next === oldValue) {
         const nonRemainderSumNoChange = sumUpcomingExcept(updated, remainderRow.id);
@@ -123,29 +118,78 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
 
       // B) Apply to target row
       updated[targetIndex].amount = next;
-
-      // C) Compute delta and redistribute evenly across subsequent rows (excluding remainder)
-      const deltaChange = round2(next - oldValue); // positive => others must reduce
-      const subsequentRows = updated
-        .slice(targetIndex + 1)
-        .filter(r => r.isEditable && r.id !== remainderRow.id);
-
-      if (subsequentRows.length > 0 && deltaChange !== 0) {
-        const prevTotalSubsequent = subsequentRows.reduce((a, r) => a + (r.amount || 0), 0);
-        let desiredTotal = Math.max(0, roundPounds(prevTotalSubsequent - deltaChange));
-
-        const count = subsequentRows.length;
-        const base = Math.floor(desiredTotal / count);
-        let leftover = desiredTotal - base * count; // 0..count-1
-
-        // Set all to base then distribute leftover +1 to the first 'leftover' rows
-        subsequentRows.forEach((row, idx) => {
-          const v = base + (idx < leftover ? 1 : 0);
-          row.amount = roundPounds(Math.max(0, v));
-        });
+      
+      // C) Compute delta and redistribute according to the specified algorithm
+      const delta = round2(next - oldValue);
+      
+      if (delta > 0) {
+        // User increases row i: first subtract from R, then spread across others
+        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
+        let remainingDelta = delta;
+        
+        // a) First subtract from R
+        if (remainingDelta > 0 && remainderIndex !== -1) {
+          const take = Math.min(remainingDelta, updated[remainderIndex].amount);
+          updated[remainderIndex].amount = round2(updated[remainderIndex].amount - take);
+          remainingDelta = round2(remainingDelta - take);
+        }
+        
+        // b) If delta > 0, absorb the rest across other upcoming rows (j ≠ i, R)
+        if (remainingDelta > 0) {
+          const otherRows = updated
+            .filter(r => r.isEditable && r.id !== paymentId && r.id !== remainderRow.id)
+            .sort((a, b) => {
+              // Sort by index in descending order (reverse chronological)
+              const aIdx = upcomingRows.findIndex(r => r.id === a.id);
+              const bIdx = upcomingRows.findIndex(r => r.id === b.id);
+              return bIdx - aIdx;
+            });
+          
+          if (otherRows.length > 0) {
+            const count = otherRows.length;
+            const base = Math.floor(remainingDelta / count);
+            let leftover = remainingDelta - base * count;
+            
+            // Distribute base amount to all rows
+            otherRows.forEach(row => {
+              const currentAmount = row.amount || 0;
+              const newAmount = Math.max(0, roundPounds(currentAmount - base));
+              row.amount = newAmount;
+            });
+            
+            // Distribute leftover +1 to first 'leftover' rows
+            let extraCount = leftover;
+            for (const row of otherRows) {
+          if (extraCount <= 0) break;
+              const currentAmount = row.amount || 0;
+              const newAmount = Math.max(0, roundPounds(currentAmount - 1));
+              if (newAmount >= 0) {
+                row.amount = newAmount;
+            extraCount--;
+              }
+            }
+            
+            // Check if we still have remaining delta after exhausting all others
+            const finalSum = updated.filter(r => r.isEditable).reduce((a, r) => a + (r.amount || 0), 0);
+            const finalDelta = round2(agreement.outstanding - finalSum);
+            
+            if (finalDelta !== 0) {
+              // Cap next to feasible maximum and recompute
+              const feasibleMax = round2(agreement.outstanding - sumUpcomingExcept(updated, paymentId));
+              next = roundPounds(Math.min(next, feasibleMax));
+              updated[targetIndex].amount = next;
+            }
+          }
+        }
+      } else if (delta < 0) {
+        // User decreases row i: add |delta| to R
+        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
+        if (remainderIndex !== -1) {
+          updated[remainderIndex].amount = round2((updated[remainderIndex].amount || 0) + Math.abs(delta));
+        }
       }
 
-      // D) Set auto-remainder row to balance exactly (may include pennies)
+      // D) Final reconciliation: set R.amount = outstanding - sum(all other upcoming amounts)
       const nonRemainderSum = sumUpcomingExcept(updated, remainderRow.id);
       const remainderValue = round2(agreement.outstanding - nonRemainderSum);
       const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
@@ -279,7 +323,7 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                           </div>
                         ) : (
                           // Editable row
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <Label htmlFor={`amount-${payment.id}`} className="sr-only">
                               Payment Amount
                             </Label>
@@ -288,39 +332,45 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                               {(() => {
                                 const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
                                 return (
-                                  <Input
-                                    id={`amount-${payment.id}`}
-                                    type="number"
-                                    min="0"
-                                    step="1"
+                              <Input
+                                id={`amount-${payment.id}`}
+                                type="number"
+                                min="0"
+                                step="1"
                                     max={Math.round(feasibleMax)}
-                                    value={payment.amount}
-                                    onChange={(e) => updatePaymentAmount(payment.id, Number(e.target.value) || 0)}
-                                    className="w-24 text-right"
-                                  />
+                                value={payment.amount}
+                                onChange={(e) => updatePaymentAmount(payment.id, Number(e.target.value) || 0)}
+                                className="w-24 text-right"
+                              />
                                 );
                               })()}
                             </div>
-                            <div className="w-32">
-                              {(() => {
-                                const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
-                                const percent = feasibleMax > 0 ? Math.round((payment.amount / feasibleMax) * 100) : 0;
-                                const clampPercent = Math.max(0, Math.min(100, percent));
-                                return (
-                                  <Slider
-                                    value={[clampPercent]}
-                                    onValueChange={([p]) => {
-                                      const bounded = Math.max(0, Math.min(100, p));
-                                      const mappedAmount = roundPounds(Math.round((bounded / 100) * feasibleMax));
-                                      updatePaymentAmount(payment.id, mappedAmount);
-                                    }}
-                                    max={100}
-                                    min={0}
-                                    step={1}
-                                    className="w-full"
-                                  />
-                                );
-                              })()}
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
+                                  const newAmount = Math.min(payment.amount + 1, feasibleMax);
+                                  updatePaymentAmount(payment.id, newAmount);
+                                }}
+                                disabled={payment.amount >= getFeasibleMaxForRow(paymentSchedule, payment.id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newAmount = Math.max(payment.amount - 1, 0);
+                                  updatePaymentAmount(payment.id, newAmount);
+                                }}
+                                disabled={payment.amount <= 0}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         );
