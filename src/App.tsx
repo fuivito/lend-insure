@@ -41,6 +41,9 @@ const App = () => (
               <Route path="support" element={<Support />} />
               <Route path="broker" element={<BrokerDashboard />} />
               <Route path="broker/dashboard" element={<BrokerDashboard />} />
+              <Route path="broker/clients" element={<BrokerDashboard />} />
+              <Route path="broker/deals" element={<BrokerDashboard />} />
+              <Route path="broker/pipeline" element={<BrokerDashboard />} />
               <Route path="broker/*" element={<BrokerComingSoon />} />
             </Route>
             
