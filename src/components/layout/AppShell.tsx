@@ -73,8 +73,8 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Demo controls (development only) */}
-      {process.env.NODE_ENV === 'development' && <DemoControls />}
+      {/* Demo controls (always visible in demo app) */}
+      <DemoControls />
     </div>
   );
 }
