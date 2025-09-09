@@ -15,6 +15,7 @@ import Documents from "./pages/customer/Documents";
 import Support from "./pages/customer/Support";
 import BrokerComingSoon from "./pages/broker/BrokerComingSoon";
 import BrokerDashboard from "./pages/broker/BrokerDashboard";
+import { ClientsList } from "./pages/broker/ClientsList";
 import Portfolio from "./components/customer/Portfolio";
 
 const queryClient = new QueryClient();
@@ -41,7 +42,7 @@ const App = () => (
               <Route path="support" element={<Support />} />
               <Route path="broker" element={<BrokerDashboard />} />
               <Route path="broker/dashboard" element={<BrokerDashboard />} />
-              <Route path="broker/clients" element={<BrokerDashboard />} />
+              <Route path="broker/clients" element={<ClientsList />} />
               <Route path="broker/deals" element={<BrokerDashboard />} />
               <Route path="broker/pipeline" element={<BrokerDashboard />} />
               <Route path="broker/*" element={<BrokerComingSoon />} />
