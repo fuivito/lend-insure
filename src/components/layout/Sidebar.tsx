@@ -30,7 +30,10 @@ export function Sidebar() {
   const { role } = useAuth();
   const location = useLocation();
   
-  const navItems = role === 'customer' ? customerNavItems : brokerNavItems;
+  // Debug: log the current role to console
+  console.log('Sidebar rendering with role:', role);
+  
+  const navItems = role === 'broker' ? brokerNavItems : customerNavItems;
 
   return (
     <div className="h-full bg-card border-r border-border flex flex-col">

@@ -19,7 +19,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ onMenuClick, user }: TopBarProps) {
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
 
   const handleLogout = async () => {
     await logout();
@@ -46,9 +46,9 @@ export function TopBar({ onMenuClick, user }: TopBarProps) {
 
       {/* User menu */}
       <div className="flex items-center space-x-4">
-        {/* Account switcher placeholder */}
+        {/* Account switcher */}
         <div className="hidden md:block text-sm text-muted-foreground">
-          Account: Personal
+          Account: {role === 'broker' ? 'Broker' : 'Customer'}
         </div>
 
         {/* User dropdown */}

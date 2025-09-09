@@ -22,9 +22,12 @@ export function useAuth() {
   };
 
   const switchRole = (newRole: UserRole) => {
+    console.log('Switching role from', role, 'to', newRole);
     authService.setRole(newRole);
     setUser(authService.getCurrentUser());
     setRole(newRole);
+    // Force page refresh to ensure all components update
+    window.location.reload();
   };
 
   const hasCompletedOnboarding = () => {
