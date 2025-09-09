@@ -26,7 +26,7 @@ const mockUsers: Record<UserRole, User> = {
 
 // Current user state (in real app, this would be managed by auth provider)
 let currentUser: User | null = null;
-let currentRole: UserRole = 'customer';
+let currentRole: UserRole = (localStorage.getItem('currentRole') as UserRole) || 'customer';
 
 export const authService = {
   getCurrentUser: (): User | null => currentUser,
@@ -35,6 +35,7 @@ export const authService = {
   setRole: (role: UserRole) => {
     currentRole = role;
     currentUser = mockUsers[role];
+    localStorage.setItem('currentRole', role);
   },
   
   login: (role: UserRole = 'customer') => {
@@ -67,5 +68,5 @@ export const authService = {
   }
 };
 
-// Initialize with customer role by default
-authService.login('customer');
+// Initialize with the stored role (or customer by default)
+authService.login(currentRole);
