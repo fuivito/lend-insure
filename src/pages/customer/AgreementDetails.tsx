@@ -68,7 +68,7 @@ export default function AgreementDetails() {
 
       <div className="grid gap-6">
         {/* Agreement Overview */}
-        <Card className="card-premium animate-fade-in">
+        <Card className="bg-secondary/30 border-secondary/40 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-fade-in">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -133,6 +133,17 @@ export default function AgreementDetails() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <Separator className="my-4" />
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <Button variant="default" className="bg-primary hover:bg-primary-hover">
+                Pay Early
+              </Button>
+              <Button variant="outline">
+                Change Payment Method
+              </Button>
             </div>
           </CardContent>
         </Card>
