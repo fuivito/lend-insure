@@ -22,6 +22,7 @@ const customerNavItems = [
 const brokerNavItems = [
   { title: 'Dashboard', url: '/app/broker', icon: Home },
   { title: 'Clients', url: '/app/broker/clients', icon: Users },
+  { title: 'Agreements', url: '/app/broker/agreements', icon: FileText },
   { title: 'Deal Builder', url: '/app/broker/deals', icon: PieChart },
   { title: 'Pipeline', url: '/app/broker/pipeline', icon: Briefcase },
 ];
