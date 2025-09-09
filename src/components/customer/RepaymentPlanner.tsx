@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Save, RefreshCw, Lock } from 'lucide-react';
+import { Calendar, DollarSign, Save, Lock, Plus, Minus } from 'lucide-react';
 import { Agreement } from '@/lib/demo/fixtures';
 import { toast } from 'sonner';
 
@@ -76,6 +76,18 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
   const sumUpcomingExcept = (arr: PaymentScheduleItem[], omit?: string) =>
     arr.filter(r => r.isEditable && r.id !== omit).reduce((a, r) => a + (r.amount || 0), 0);
 
+  // Feasible maximum for a given editable row when only subsequent rows + remainder can adjust.
+  const getFeasibleMaxForRow = (rows: PaymentScheduleItem[], rowId: string): number => {
+    const upcoming = rows.filter(r => r.isEditable);
+    const targetPos = upcoming.findIndex(r => r.id === rowId);
+    if (targetPos === -1) return 0;
+    const fixedBeforeSum = upcoming
+      .slice(0, targetPos)
+      .reduce((sum, r) => sum + (r.amount || 0), 0);
+    const max = Math.max(0, round2(agreement.outstanding - fixedBeforeSum));
+    return max;
+  };
+
   const updatePaymentAmount = (paymentId: string, newAmount: number) => {
     setPaymentSchedule(prev => {
       const updated = [...prev];
@@ -92,54 +104,92 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       if (isRemainderRow) return prev;
       
       // A) Round to whole pounds, clamp >= 0
-      let next = roundPounds(newAmount);
+      const oldValue = updated[targetIndex].amount;
+      let next = roundPounds(Math.max(0, newAmount));
       
-      // B) Don't let this row exceed what's feasible (others must stay >= 0)
-      const sumOthers = sumUpcomingExcept(updated, paymentId);
-      const hardMaxForI = Math.max(0, round2(agreement.outstanding - sumOthers));
-      next = Math.min(next, hardMaxForI);
-      
-      // C) Apply to target row
+      // If no change, only refresh the remainder row and exit
+      if (next === oldValue) {
+        const nonRemainderSumNoChange = sumUpcomingExcept(updated, remainderRow.id);
+        const remainderNoChange = round2(agreement.outstanding - nonRemainderSumNoChange);
+        const rIdxNoChange = updated.findIndex(r => r.id === remainderRow.id);
+        if (rIdxNoChange !== -1) updated[rIdxNoChange].amount = Math.max(0, remainderNoChange);
+        return updated;
+      }
+
+      // B) Apply to target row
       updated[targetIndex].amount = next;
       
-      // D) Calculate what needs to be redistributed
-      const currentSum = updated.filter(r => r.isEditable).reduce((a, r) => a + r.amount, 0);
-      let delta = round2(agreement.outstanding - currentSum);
+      // C) Compute delta and redistribute according to the specified algorithm
+      const delta = round2(next - oldValue);
       
-      // E) Get subsequent rows to redistribute to (excluding remainder)
-      const subsequentRows = updated
-        .slice(targetIndex + 1)
-        .filter(r => r.isEditable && r.id !== remainderRow.id);
-      
-      if (subsequentRows.length > 0 && delta !== 0) {
-        let remaining = delta;
-        const sign = delta > 0 ? 1 : -1;
-        const count = subsequentRows.length;
+      if (delta > 0) {
+        // User increases row i: first subtract from R, then spread across others
+        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
+        let remainingDelta = delta;
         
-        // Base even distribution in whole pounds
-        const base = Math.trunc(Math.abs(remaining) / count);
-        const extra = Math.abs(remaining) % count;
+        // a) First subtract from R
+        if (remainingDelta > 0 && remainderIndex !== -1) {
+          const take = Math.min(remainingDelta, updated[remainderIndex].amount);
+          updated[remainderIndex].amount = round2(updated[remainderIndex].amount - take);
+          remainingDelta = round2(remainingDelta - take);
+        }
         
-        // Apply base amount to all subsequent rows
-        subsequentRows.forEach(row => {
-          const change = sign * base;
-          const candidate = row.amount + change;
-          row.amount = Math.max(0, roundPounds(candidate));
-        });
-        
-        // Distribute leftover £1 increments
-        let extraCount = extra;
-        for (const row of subsequentRows) {
+        // b) If delta > 0, absorb the rest across other upcoming rows (j ≠ i, R)
+        if (remainingDelta > 0) {
+          const otherRows = updated
+            .filter(r => r.isEditable && r.id !== paymentId && r.id !== remainderRow.id)
+            .sort((a, b) => {
+              // Sort by index in descending order (reverse chronological)
+              const aIdx = upcomingRows.findIndex(r => r.id === a.id);
+              const bIdx = upcomingRows.findIndex(r => r.id === b.id);
+              return bIdx - aIdx;
+            });
+          
+          if (otherRows.length > 0) {
+            const count = otherRows.length;
+            const base = Math.floor(remainingDelta / count);
+            let leftover = remainingDelta - base * count;
+            
+            // Distribute base amount to all rows
+            otherRows.forEach(row => {
+              const currentAmount = row.amount || 0;
+              const newAmount = Math.max(0, roundPounds(currentAmount - base));
+              row.amount = newAmount;
+            });
+            
+            // Distribute leftover +1 to first 'leftover' rows
+            let extraCount = leftover;
+            for (const row of otherRows) {
           if (extraCount <= 0) break;
-          const candidate = row.amount + sign * 1;
-          if (candidate >= 0) {
-            row.amount = roundPounds(candidate);
+              const currentAmount = row.amount || 0;
+              const newAmount = Math.max(0, roundPounds(currentAmount - 1));
+              if (newAmount >= 0) {
+                row.amount = newAmount;
             extraCount--;
+              }
+            }
+            
+            // Check if we still have remaining delta after exhausting all others
+            const finalSum = updated.filter(r => r.isEditable).reduce((a, r) => a + (r.amount || 0), 0);
+            const finalDelta = round2(agreement.outstanding - finalSum);
+            
+            if (finalDelta !== 0) {
+              // Cap next to feasible maximum and recompute
+              const feasibleMax = round2(agreement.outstanding - sumUpcomingExcept(updated, paymentId));
+              next = roundPounds(Math.min(next, feasibleMax));
+              updated[targetIndex].amount = next;
+            }
           }
         }
+      } else if (delta < 0) {
+        // User decreases row i: add |delta| to R
+        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
+        if (remainderIndex !== -1) {
+          updated[remainderIndex].amount = round2((updated[remainderIndex].amount || 0) + Math.abs(delta));
+        }
       }
-      
-      // F) Set auto-remainder row to balance exactly
+
+      // D) Final reconciliation: set R.amount = outstanding - sum(all other upcoming amounts)
       const nonRemainderSum = sumUpcomingExcept(updated, remainderRow.id);
       const remainderValue = round2(agreement.outstanding - nonRemainderSum);
       const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
@@ -273,31 +323,54 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                           </div>
                         ) : (
                           // Editable row
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <Label htmlFor={`amount-${payment.id}`} className="sr-only">
                               Payment Amount
                             </Label>
                             <div className="flex items-center gap-2">
                               <span className="text-sm">£</span>
+                              {(() => {
+                                const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
+                                return (
                               <Input
                                 id={`amount-${payment.id}`}
                                 type="number"
                                 min="0"
                                 step="1"
+                                    max={Math.round(feasibleMax)}
                                 value={payment.amount}
                                 onChange={(e) => updatePaymentAmount(payment.id, Number(e.target.value) || 0)}
                                 className="w-24 text-right"
                               />
+                                );
+                              })()}
                             </div>
-                            <div className="w-32">
-                              <Slider
-                                value={[payment.amount]}
-                                onValueChange={([value]) => updatePaymentAmount(payment.id, value)}
-                                max={Math.max(payment.amount + 500, agreement.outstanding)}
-                                min={0}
-                                step={1}
-                                className="w-full"
-                              />
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
+                                  const newAmount = Math.min(payment.amount + 1, feasibleMax);
+                                  updatePaymentAmount(payment.id, newAmount);
+                                }}
+                                disabled={payment.amount >= getFeasibleMaxForRow(paymentSchedule, payment.id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newAmount = Math.max(payment.amount - 1, 0);
+                                  updatePaymentAmount(payment.id, newAmount);
+                                }}
+                                disabled={payment.amount <= 0}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         );
