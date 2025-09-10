@@ -18,7 +18,7 @@ export function AppShell() {
   const validBrokerRoutes = ['/app/broker', '/app/broker/dashboard', '/app/broker/clients', '/app/broker/deals', '/app/broker/pipeline'];
   
   const isValidCustomerRoute = validCustomerRoutes.some(route => 
-    location.pathname === route || location.pathname.startsWith('/app/customer/agreements/')
+    location.pathname === route || location.pathname.startsWith('/app/customer/') || location.pathname.startsWith('/app/proposals')
   );
   
   const isValidBrokerRoute = validBrokerRoutes.some(route => 
