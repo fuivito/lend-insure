@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReviewProposal } from '@/components/proposals/steps/ReviewProposal';
+import { AdjustPlan } from '@/components/proposals/steps/AdjustPlan';
 import { mockProposals } from '@/lib/demo/proposals';
 import { Proposal } from '@/types/proposals';
 import { ArrowLeft, CheckCircle, Circle, Clock, FileText, CreditCard, Shield, User, Download } from 'lucide-react';
@@ -137,7 +138,14 @@ export function ProposalDetail() {
               />
             )}
             
-            {currentStep !== 'review' && (
+            {currentStep === 'customize' && (
+              <AdjustPlan 
+                proposal={proposal} 
+                onContinue={() => handleStepComplete('customize')}
+              />
+            )}
+            
+            {currentStep !== 'review' && currentStep !== 'customize' && (
               <Card className="p-12 text-center">
                 <div className="max-w-md mx-auto">
                   <Clock className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
