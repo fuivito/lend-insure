@@ -7,6 +7,7 @@ import { ReviewProposal } from '@/components/proposals/steps/ReviewProposal';
 import { AdjustPlan } from '@/components/proposals/steps/AdjustPlan';
 import { CreditIdentity } from '@/components/proposals/steps/CreditIdentity';
 import { DigitalAgreement } from '@/components/proposals/steps/DigitalAgreement';
+import { PaymentSetup } from '@/components/proposals/steps/PaymentSetup';
 import { mockProposals } from '@/lib/demo/proposals';
 import { Proposal } from '@/types/proposals';
 import { ArrowLeft, CheckCircle, Circle, Clock, FileText, CreditCard, Shield, User, Download } from 'lucide-react';
@@ -161,7 +162,15 @@ export function ProposalDetail() {
               />
             )}
             
-            {currentStep !== 'review' && currentStep !== 'customize' && currentStep !== 'kyc' && currentStep !== 'agreement' && (
+            {currentStep === 'payment' && (
+              <PaymentSetup 
+                proposal={proposal} 
+                onContinue={() => handleStepComplete('payment')}
+                onBack={() => setCurrentStep('agreement')}
+              />
+            )}
+            
+            {currentStep !== 'review' && currentStep !== 'customize' && currentStep !== 'kyc' && currentStep !== 'agreement' && currentStep !== 'payment' && (
               <Card className="p-12 text-center">
                 <div className="max-w-md mx-auto">
                   <Clock className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
