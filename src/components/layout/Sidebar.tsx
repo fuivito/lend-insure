@@ -60,12 +60,11 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-4 py-4 space-y-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.url;
-          
           return (
             <NavLink
               key={item.title}
               to={item.url}
+              end={item.url === '/app/broker' || item.url === '/app/customer'}
               className={({ isActive }) => cn(
                 'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                 isActive 
