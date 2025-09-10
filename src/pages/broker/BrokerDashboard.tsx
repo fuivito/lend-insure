@@ -79,62 +79,41 @@ export default function BrokerDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Notifications Feed */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Recent Notifications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {notifications.map((notification) => {
-              const IconComponent = notificationIcons[notification.type];
-              const iconColor = notificationColors[notification.type];
-              
-              return (
-                <div key={notification.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent/50 transition-colors">
-                  <IconComponent className={`h-5 w-5 mt-0.5 ${iconColor}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      {notification.message}
-                    </p>
-                    {notification.clientName && (
-                      <p className="text-xs text-muted-foreground">
-                        Client: {notification.clientName}
-                        {notification.policyRef && ` • ${notification.policyRef}`}
-                      </p>
-                    )}
+      {/* Notifications Feed */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Recent Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {notifications.map((notification) => {
+            const IconComponent = notificationIcons[notification.type];
+            const iconColor = notificationColors[notification.type];
+            
+            return (
+              <div key={notification.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent/50 transition-colors">
+                <IconComponent className={`h-5 w-5 mt-0.5 ${iconColor}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {notification.message}
+                  </p>
+                  {notification.clientName && (
                     <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.date), { addSuffix: true })}
+                      Client: {notification.clientName}
+                      {notification.policyRef && ` • ${notification.policyRef}`}
                     </p>
-                  </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.date), { addSuffix: true })}
+                  </p>
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {/* Revenue Chart Placeholder */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Revenue Over Time
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center bg-muted/30 rounded-lg border-2 border-dashed border-muted-foreground/20">
-              <div className="text-center text-muted-foreground">
-                <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">Revenue Chart</p>
-                <p className="text-xs">Chart visualization coming soon</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -53,8 +53,7 @@ const App = () => (
               <Route path="broker/agreements" element={<AgreementsList />} />
               <Route path="broker/agreements/new" element={<CreateAgreement />} />
               <Route path="broker/agreements/:id" element={<AgreementDetail />} />
-              <Route path="broker/deals" element={<BrokerDashboard />} />
-              <Route path="broker/pipeline" element={<BrokerDashboard />} />
+              <Route path="broker/deal-builder" element={<CreateAgreement />} />
               <Route path="broker/*" element={<BrokerComingSoon />} />
             </Route>
             
