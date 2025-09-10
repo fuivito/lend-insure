@@ -133,6 +133,7 @@ export function ProposalDetail() {
             {currentStep === 'review' && (
               <ReviewProposal 
                 proposal={proposal} 
+                onContinue={() => setCurrentStep('customize')}
               />
             )}
             
