@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ProposalSummary } from '@/components/proposals/ProposalSummary';
 import { ReviewProposal } from '@/components/proposals/steps/ReviewProposal';
 import { mockProposals } from '@/lib/demo/proposals';
 import { Proposal } from '@/types/proposals';
@@ -122,9 +121,9 @@ export function ProposalDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Main Content */}
-        <div className="lg:col-span-3 space-y-6">
+        
           {/* Progress Steps */}
           <Card className="p-6">
             <h2 className="font-semibold mb-4 text-foreground">Application Progress</h2>
@@ -188,12 +187,7 @@ export function ProposalDetail() {
               </Card>
             )}
           </div>
-        </div>
-
-        {/* Right Sidebar - Summary */}
-        <div className="lg:col-span-1">
-          <ProposalSummary terms={proposal.terms} />
-        </div>
+        
       </div>
     </div>
   );

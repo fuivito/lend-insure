@@ -37,13 +37,13 @@ export const mockProposals: Proposal[] = [
   {
     id: 'prop-002',
     brokerId: 'broker-002',
-    brokerName: 'Metropolitan Risk Solutions',
-    brokerEmail: 'deals@metrorisk.com',
+    brokerName: 'Sarah Smith Insurance',
+    brokerEmail: 'sarah@smithinsurance.com',
     insuranceType: 'Directors & Officers',
     totalPremium: 15750,
     currency: 'GBP',
     expiryDate: '2025-01-22',
-    status: 'viewed',
+    status: 'new',
     createdAt: '2024-11-28T14:30:00Z',
     updatedAt: '2024-12-03T09:15:00Z',
     terms: {
