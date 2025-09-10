@@ -1,20 +1,20 @@
-import { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, DollarSign, Save, Lock, AlertCircle } from 'lucide-react';
+import { DollarSign, Save, RotateCcw, AlertCircle } from 'lucide-react';
 import { Agreement } from '@/lib/demo/fixtures';
 import { toast } from 'sonner';
 
-interface PaymentScheduleItem {
+interface PaymentInstalment {
   id: string;
-  date: string;
+  number: number;
+  dueDate: string;
   amount: number;
-  isPaid: boolean;
-  isEditable: boolean;
+  isPast: boolean;
 }
 
 interface RepaymentPlannerProps {
@@ -22,241 +22,152 @@ interface RepaymentPlannerProps {
 }
 
 export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
-  // Auto-balancing repayment planner component
-  // Generate payment schedule based on agreement data
-  const generatePaymentSchedule = (): PaymentScheduleItem[] => {
-    const schedule: PaymentScheduleItem[] = [];
+  // Generate initial payment schedule
+  const generateSchedule = (): PaymentInstalment[] => {
+    const schedule: PaymentInstalment[] = [];
     const startDate = new Date(agreement.nextDueDate);
     const totalPayments = agreement.remainingTerm.total;
     const paidPayments = agreement.remainingTerm.paid;
-    const remainingPayments = totalPayments - paidPayments;
     
-    // Add past payments (greyed out/locked)
+    // Add past payments
     for (let i = 0; i < paidPayments; i++) {
       const date = new Date(startDate);
       date.setMonth(date.getMonth() - (paidPayments - i));
       
       schedule.push({
         id: `past-${i}`,
-        date: date.toISOString().split('T')[0],
+        number: i + 1,
+        dueDate: date.toISOString().split('T')[0],
         amount: agreement.monthlyAmount,
-        isPaid: true,
-        isEditable: false
+        isPast: true
       });
     }
     
-    // Add future payments (editable)
+    // Add future payments with even distribution
+    const remainingPayments = totalPayments - paidPayments;
+    const evenAmount = Math.floor(agreement.outstanding / remainingPayments);
+    const remainder = agreement.outstanding - (evenAmount * remainingPayments);
+    
     for (let i = 0; i < remainingPayments; i++) {
       const date = new Date(startDate);
       date.setMonth(date.getMonth() + i);
       
       schedule.push({
         id: `future-${i}`,
-        date: date.toISOString().split('T')[0],
-        amount: agreement.monthlyAmount,
-        isPaid: false,
-        isEditable: true
+        number: paidPayments + i + 1,
+        dueDate: date.toISOString().split('T')[0],
+        amount: i === remainingPayments - 1 ? evenAmount + remainder : evenAmount,
+        isPast: false
       });
     }
     
     return schedule;
   };
 
-  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleItem[]>(generatePaymentSchedule());
-  
-  const { outstandingBalance } = useMemo(() => {
-    return {
-      outstandingBalance: agreement.outstanding
-    };
-  }, [agreement.outstanding]);
+  const [schedule, setSchedule] = useState<PaymentInstalment[]>(generateSchedule());
 
-  // Helper functions for the rebalancing algorithm
-  const roundPounds = (n: number) => Math.max(0, Math.round(n || 0));
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const sumUpcomingExcept = (arr: PaymentScheduleItem[], omit?: string) =>
-    arr.filter(r => r.isEditable && r.id !== omit).reduce((a, r) => a + (r.amount || 0), 0);
+  // Calculate totals and validation
+  const futurePayments = schedule.filter(p => !p.isPast);
+  const totalScheduled = futurePayments.reduce((sum, p) => sum + p.amount, 0);
+  const isBalanced = Math.abs(totalScheduled - agreement.outstanding) < 0.01;
 
-  // Feasible maximum for a given editable row when only subsequent rows + remainder can adjust.
-  const getFeasibleMaxForRow = (rows: PaymentScheduleItem[], rowId: string): number => {
-    const upcoming = rows.filter(r => r.isEditable);
-    const targetPos = upcoming.findIndex(r => r.id === rowId);
-    if (targetPos === -1) return 0;
-    const fixedBeforeSum = upcoming
-      .slice(0, targetPos)
-      .reduce((sum, r) => sum + (r.amount || 0), 0);
-    const max = Math.max(0, round2(agreement.outstanding - fixedBeforeSum));
-    return max;
-  };
-
-  const updatePaymentAmount = (paymentId: string, newAmount: number) => {
-    setPaymentSchedule(prev => {
+  // Update payment amount and rebalance
+  const updatePayment = (id: string, newAmount: number) => {
+    const amount = Math.max(0, Math.round(newAmount));
+    
+    setSchedule(prev => {
       const updated = [...prev];
-      const targetIndex = updated.findIndex(p => p.id === paymentId && p.isEditable);
+      const targetIndex = updated.findIndex(p => p.id === id);
       
-      if (targetIndex === -1) return prev;
+      if (targetIndex === -1 || updated[targetIndex].isPast) return prev;
       
-      // Get upcoming payment indices and identify remainder row (last upcoming)
-      const upcomingRows = updated.filter(r => r.isEditable);
-      const remainderRow = upcomingRows[upcomingRows.length - 1];
-      const isRemainderRow = paymentId === remainderRow.id;
+      const oldAmount = updated[targetIndex].amount;
+      const difference = amount - oldAmount;
       
-      // Don't allow manual editing of the remainder row
-      if (isRemainderRow) return prev;
+      // Update target payment
+      updated[targetIndex].amount = amount;
       
-      // A) Round to whole pounds, clamp >= 0
-      const oldValue = updated[targetIndex].amount;
-      let next = roundPounds(Math.max(0, newAmount));
+      // Find other future payments to rebalance
+      const otherFuturePayments = updated.filter(p => !p.isPast && p.id !== id);
       
-      // If no change, only refresh the remainder row and exit
-      if (next === oldValue) {
-        const nonRemainderSumNoChange = sumUpcomingExcept(updated, remainderRow.id);
-        const remainderNoChange = round2(agreement.outstanding - nonRemainderSumNoChange);
-        const rIdxNoChange = updated.findIndex(r => r.id === remainderRow.id);
-        if (rIdxNoChange !== -1) updated[rIdxNoChange].amount = Math.max(0, remainderNoChange);
-        return updated;
-      }
-
-      // B) Apply to target row
-      updated[targetIndex].amount = next;
+      if (otherFuturePayments.length === 0) return updated;
       
-      // C) Compute delta and redistribute according to the specified algorithm
-      const delta = round2(next - oldValue);
+      // Distribute the difference across other payments
+      const perPayment = Math.floor(Math.abs(difference) / otherFuturePayments.length);
+      let remainingDiff = Math.abs(difference) - (perPayment * otherFuturePayments.length);
       
-      if (delta > 0) {
-        // User increases row i: first subtract from R, then spread across others
-        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
-        let remainingDelta = delta;
+      otherFuturePayments.forEach((payment, index) => {
+        const paymentIndex = updated.findIndex(p => p.id === payment.id);
+        if (paymentIndex === -1) return;
         
-        // a) First subtract from R
-        if (remainingDelta > 0 && remainderIndex !== -1) {
-          const take = Math.min(remainingDelta, updated[remainderIndex].amount);
-          updated[remainderIndex].amount = round2(updated[remainderIndex].amount - take);
-          remainingDelta = round2(remainingDelta - take);
+        let adjustment = perPayment;
+        if (index < remainingDiff) adjustment += 1;
+        
+        if (difference > 0) {
+          // Target increased, decrease others
+          updated[paymentIndex].amount = Math.max(0, payment.amount - adjustment);
+        } else {
+          // Target decreased, increase others
+          updated[paymentIndex].amount = payment.amount + adjustment;
         }
-        
-        // b) If delta > 0, absorb the rest across other upcoming rows (j ≠ i, R)
-        if (remainingDelta > 0) {
-          const otherRows = updated
-            .filter(r => r.isEditable && r.id !== paymentId && r.id !== remainderRow.id)
-            .sort((a, b) => {
-              // Sort by index in descending order (reverse chronological)
-              const aIdx = upcomingRows.findIndex(r => r.id === a.id);
-              const bIdx = upcomingRows.findIndex(r => r.id === b.id);
-              return bIdx - aIdx;
-            });
+      });
+      
+      // Final balance correction - put any remaining difference in the last payment
+      const newTotal = updated.filter(p => !p.isPast).reduce((sum, p) => sum + p.amount, 0);
+      const finalDiff = agreement.outstanding - newTotal;
+      
+      if (Math.abs(finalDiff) > 0) {
+        const lastFutureIndex = updated.map((p, i) => ({ ...p, index: i }))
+          .filter(p => !p.isPast)
+          .pop()?.index;
           
-          if (otherRows.length > 0) {
-            const count = otherRows.length;
-            const base = Math.floor(remainingDelta / count);
-            let leftover = remainingDelta - base * count;
-            
-            // Distribute base amount to all rows
-            otherRows.forEach(row => {
-              const currentAmount = row.amount || 0;
-              const newAmount = Math.max(0, roundPounds(currentAmount - base));
-              row.amount = newAmount;
-            });
-            
-            // Distribute leftover +1 to first 'leftover' rows
-            let extraCount = leftover;
-            for (const row of otherRows) {
-          if (extraCount <= 0) break;
-              const currentAmount = row.amount || 0;
-              const newAmount = Math.max(0, roundPounds(currentAmount - 1));
-              if (newAmount >= 0) {
-                row.amount = newAmount;
-            extraCount--;
-              }
-            }
-            
-            // Check if we still have remaining delta after exhausting all others
-            const finalSum = updated.filter(r => r.isEditable).reduce((a, r) => a + (r.amount || 0), 0);
-            const finalDelta = round2(agreement.outstanding - finalSum);
-            
-            if (finalDelta !== 0) {
-              // Cap next to feasible maximum and recompute
-              const feasibleMax = round2(agreement.outstanding - sumUpcomingExcept(updated, paymentId));
-              next = roundPounds(Math.min(next, feasibleMax));
-              updated[targetIndex].amount = next;
-            }
-          }
+        if (lastFutureIndex !== undefined) {
+          updated[lastFutureIndex].amount = Math.max(0, updated[lastFutureIndex].amount + finalDiff);
         }
-      } else if (delta < 0) {
-        // User decreases row i: add |delta| to R
-        const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
-        if (remainderIndex !== -1) {
-          updated[remainderIndex].amount = round2((updated[remainderIndex].amount || 0) + Math.abs(delta));
-        }
-      }
-
-      // D) Final reconciliation: set R.amount = outstanding - sum(all other upcoming amounts)
-      const nonRemainderSum = sumUpcomingExcept(updated, remainderRow.id);
-      const remainderValue = round2(agreement.outstanding - nonRemainderSum);
-      const remainderIndex = updated.findIndex(r => r.id === remainderRow.id);
-      if (remainderIndex !== -1) {
-        updated[remainderIndex].amount = Math.max(0, remainderValue);
       }
       
       return updated;
     });
   };
 
-  const handleSave = () => {
-    toast.success('Repayment plan updated successfully!');
+  // Reset to even distribution
+  const resetToEven = () => {
+    setSchedule(generateSchedule());
+    toast.info('Payment schedule reset to even distribution');
   };
 
-  const handleReset = () => {
-    setPaymentSchedule(prev => {
-      const reset = generatePaymentSchedule();
-      const upcomingRows = reset.filter(r => r.isEditable);
-      
-      if (upcomingRows.length > 0) {
-        // Even distribution in whole pounds with remainder handling
-        const baseAmount = Math.floor(agreement.outstanding / upcomingRows.length);
-        const remainder = agreement.outstanding % upcomingRows.length;
-        
-        upcomingRows.forEach((row, index) => {
-          if (index < upcomingRows.length - 1) {
-            // Non-remainder rows get base + potential extra £1
-            row.amount = baseAmount + (index < remainder ? 1 : 0);
-          } else {
-            // Final row gets exact remainder to balance
-            const sumOthers = upcomingRows.slice(0, -1).reduce((sum, r) => sum + r.amount, 0);
-            row.amount = round2(agreement.outstanding - sumOthers);
-          }
-        });
-      }
-      
-      return reset;
-    });
-    toast.info('Repayment plan reset to original schedule.');
+  // Save plan
+  const savePlan = () => {
+    if (!isBalanced) {
+      toast.error('Payment schedule must equal outstanding balance');
+      return;
+    }
+    toast.success('Repayment plan saved successfully');
   };
-
-  // Calculate totals for validation
-  const totalScheduled = paymentSchedule.reduce((sum, payment) => sum + payment.amount, 0);
-  const isBalanced = Math.abs(totalScheduled - outstandingBalance) < 0.01;
 
   return (
-    <Card className="card-premium animate-fade-in" style={{ animationDelay: '100ms' }}>
+    <Card className="w-full">
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
               Repayment Planner
             </CardTitle>
-            <CardDescription>
-              Adjust your upcoming payment amounts. Past payments are locked.
-            </CardDescription>
+            <p className="text-sm text-muted-foreground mt-1">
+              Adjust your payment schedule. Past payments cannot be changed.
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset}>
+            <Button variant="outline" size="sm" onClick={resetToEven}>
+              <RotateCcw className="h-4 w-4 mr-2" />
               Reset to Even
             </Button>
             <Button 
-              onClick={handleSave}
-              className="gap-2"
+              onClick={savePlan}
               disabled={!isBalanced}
+              size="sm"
+              className="gap-2"
             >
               <Save className="h-4 w-4" />
               Save Plan
@@ -266,143 +177,101 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       </CardHeader>
       <CardContent>
         {/* Balance Summary */}
-        <div className="mb-6 p-4 bg-accent rounded-lg">
+        <div className="mb-6 p-4 bg-muted/50 rounded-lg">
           <div className="flex justify-between items-center">
             <div>
-              <div className="text-sm text-muted-foreground">Outstanding Balance</div>
-              <div className="text-lg font-bold text-primary">
-                £{outstandingBalance.toFixed(2)}
-              </div>
+              <p className="text-sm text-muted-foreground">Outstanding Balance</p>
+              <p className="text-lg font-semibold">£{agreement.outstanding.toFixed(2)}</p>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground">Total Scheduled</div>
-              <div className={`text-lg font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
+              <p className="text-sm text-muted-foreground">Total Scheduled</p>
+              <p className={`text-lg font-semibold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
                 £{totalScheduled.toFixed(2)}
-              </div>
+              </p>
             </div>
           </div>
           {!isBalanced && (
-            <div className="mt-2 text-sm text-destructive flex items-center gap-1">
+            <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
               <AlertCircle className="h-4 w-4" />
-              Payment schedule must equal outstanding balance
+              Total scheduled payments must equal outstanding balance
             </div>
           )}
         </div>
 
         {/* Payment Schedule Table */}
-        <div className="space-y-4">
-          <h4 className="font-semibold flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Payment Schedule
-          </h4>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-3 text-sm font-medium text-muted-foreground">#</th>
-                  <th className="text-left p-3 text-sm font-medium text-muted-foreground">Due Date</th>
-                  <th className="text-right p-3 text-sm font-medium text-muted-foreground">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentSchedule.map((payment, index) => {
-                  const upcomingRows = paymentSchedule.filter(r => r.isEditable);
-                  const remainderRow = upcomingRows[upcomingRows.length - 1];
-                  const isRemainderRow = payment.id === remainderRow.id;
-                  const feasibleMax = getFeasibleMaxForRow(paymentSchedule, payment.id);
-                  
-                  return (
-                    <tr
-                      key={payment.id}
-                      className={`border-b transition-colors ${
-                        payment.isPaid 
-                          ? 'bg-muted/30 opacity-60' 
-                          : 'hover:bg-muted/50'
-                      }`}
-                    >
-                      {/* Instalment Number */}
-                      <td className="p-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                          payment.isPaid 
-                            ? 'bg-muted text-muted-foreground'
-                            : 'bg-primary text-primary-foreground'
-                        }`}>
-                          {index + 1}
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">#</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {schedule.map((payment) => (
+                <TableRow 
+                  key={payment.id}
+                  className={payment.isPast ? 'bg-muted/30 opacity-60' : undefined}
+                >
+                  <TableCell className="font-medium">
+                    {payment.number}
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <div className={payment.isPast ? 'text-muted-foreground' : ''}>
+                        {new Date(payment.dueDate).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </div>
+                      <Badge 
+                        variant={payment.isPast ? 'secondary' : 'outline'}
+                        className="text-xs mt-1"
+                      >
+                        {payment.isPast ? 'Paid' : 'Due'}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      {payment.isPast ? (
+                        <div className="text-right">
+                          <p className="font-medium text-muted-foreground">
+                            £{payment.amount.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Locked</p>
                         </div>
-                      </td>
-                      
-                      {/* Due Date */}
-                      <td className="p-3">
-                        <div className={payment.isPaid ? 'text-muted-foreground' : ''}>
-                          {new Date(payment.date).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
+                      ) : (
+                        <div className="space-y-2 min-w-[200px]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">£</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={payment.amount}
+                              onChange={(e) => updatePayment(payment.id, Number(e.target.value) || 0)}
+                              className="w-20 text-right"
+                            />
+                          </div>
+                          <Slider
+                            value={[payment.amount]}
+                            onValueChange={(value) => updatePayment(payment.id, value[0])}
+                            max={agreement.outstanding}
+                            min={0}
+                            step={1}
+                            className="w-full"
+                          />
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {payment.isPaid ? 'Paid' : 'Upcoming'}
-                        </div>
-                      </td>
-                      
-                      {/* Amount with Slider/Input */}
-                      <td className="p-3">
-                        <div className="flex flex-col items-end gap-2">
-                          {!payment.isEditable ? (
-                            // Past payments (locked)
-                            <div className="flex items-center gap-2">
-                              <Lock className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium text-muted-foreground">
-                                £{payment.amount.toFixed(2)}
-                              </span>
-                            </div>
-                          ) : isRemainderRow ? (
-                            // Auto-remainder row
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                £{payment.amount.toFixed(2)}
-                              </span>
-                              <Badge variant="secondary" className="text-xs">
-                                Auto
-                              </Badge>
-                            </div>
-                          ) : (
-                            // Editable rows with slider and input
-                            <div className="flex flex-col items-end gap-2 min-w-[200px]">
-                              <div className="flex items-center gap-2 w-full">
-                                <span className="text-sm">£</span>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  max={Math.round(feasibleMax)}
-                                  value={payment.amount}
-                                  onChange={(e) => updatePaymentAmount(payment.id, Number(e.target.value) || 0)}
-                                  className="w-20 text-right text-sm"
-                                />
-                              </div>
-                              <Slider
-                                value={[payment.amount]}
-                                onValueChange={(value) => updatePaymentAmount(payment.id, value[0])}
-                                max={Math.round(feasibleMax)}
-                                min={0}
-                                step={1}
-                                className="w-full"
-                              />
-                              <div className="text-xs text-muted-foreground">
-                                Max: £{Math.round(feasibleMax)}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>
