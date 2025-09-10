@@ -22,6 +22,8 @@ import { AgreementsList } from "./pages/broker/AgreementsList";
 import { CreateAgreement } from "./pages/broker/CreateAgreement";
 import { AgreementDetail } from "./pages/broker/AgreementDetail";
 import Portfolio from "./components/customer/Portfolio";
+import { ProposalsList } from "./pages/customer/ProposalsList";
+import { ProposalDetail } from "./pages/customer/ProposalDetail";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,8 @@ const App = () => (
               <Route path="onboarding" element={<OnboardingWizard />} />
               <Route path="customer" element={<Portfolio />} />
               <Route path="customer/agreements/:id/overview" element={<AgreementDetails />} />
+              <Route path="proposals" element={<ProposalsList />} />
+              <Route path="proposals/:id" element={<ProposalDetail />} />
               <Route path="payments" element={<PaymentHistory />} />
               <Route path="documents" element={<Documents />} />
               <Route path="support" element={<Support />} />

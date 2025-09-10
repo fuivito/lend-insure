@@ -9,11 +9,13 @@ import {
   Users, 
   PieChart, 
   Briefcase,
-  Building
+  Building,
+  ScrollText
 } from 'lucide-react';
 
 const customerNavItems = [
   { title: 'Dashboard', url: '/app/customer', icon: Home },
+  { title: 'Proposals', url: '/app/proposals', icon: ScrollText },
   { title: 'Payments', url: '/app/payments', icon: CreditCard },
   { title: 'Documents', url: '/app/documents', icon: FileText },
   { title: 'Support', url: '/app/support', icon: HelpCircle },
