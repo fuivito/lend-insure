@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReviewProposal } from '@/components/proposals/steps/ReviewProposal';
 import { mockProposals } from '@/lib/demo/proposals';
@@ -31,10 +30,6 @@ export function ProposalDetail() {
       const found = mockProposals.find(p => p.id === id);
       if (found) {
         setProposal(found);
-        // Mark proposal as viewed if it was new
-        if (found.status === 'new') {
-          found.status = 'viewed';
-        }
       } else {
         navigate('/app/proposals');
       }
@@ -89,20 +84,7 @@ export function ProposalDetail() {
         </Button>
         
         <div className="flex-1">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold text-foreground">{proposal.brokerName}</h1>
-            <Badge 
-              className={cn(
-                "text-xs font-medium",
-                proposal.status === 'new' && "bg-primary text-primary-foreground",
-                proposal.status === 'viewed' && "bg-muted text-muted-foreground",
-                proposal.status === 'accepted' && "bg-success text-success-foreground",
-                proposal.status === 'declined' && "bg-destructive text-destructive-foreground"
-              )}
-            >
-              {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-            </Badge>
-          </div>
+          <h1 className="text-2xl font-bold text-foreground">{proposal.brokerName}</h1>
           <p className="text-muted-foreground">{proposal.insuranceType} • £{proposal.totalPremium.toLocaleString()}</p>
         </div>
       </div>
@@ -162,7 +144,7 @@ export function ProposalDetail() {
                     {workflowSteps.find(s => s.id === currentStep)?.title}
                   </h3>
                   <p className="text-muted-foreground mb-6">
-                    This step is coming soon. For now, please review and accept the proposal to proceed.
+                    This step is coming soon. For now, please review the proposal details.
                   </p>
                   <Button onClick={() => handleStepComplete(currentStep)} className="w-full">
                     Mark as Complete (Demo)
