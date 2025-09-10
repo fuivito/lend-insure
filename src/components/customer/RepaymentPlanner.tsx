@@ -43,10 +43,10 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       });
     }
     
-    // Add future payments with even distribution
+    // Add future payments with even distribution (penny precision)
     const remainingPayments = totalPayments - paidPayments;
-    const evenAmount = Math.floor(agreement.outstanding / remainingPayments);
-    const remainder = agreement.outstanding - (evenAmount * remainingPayments);
+    const evenAmount = Math.floor(agreement.outstanding * 100 / remainingPayments) / 100;
+    const remainder = Math.round((agreement.outstanding - (evenAmount * remainingPayments)) * 100) / 100;
     
     for (let i = 0; i < remainingPayments; i++) {
       const date = new Date(startDate);
@@ -66,14 +66,14 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
 
   const [schedule, setSchedule] = useState<PaymentInstalment[]>(generateSchedule());
 
-  // Calculate totals and validation
+  // Calculate totals and validation with penny precision
   const futurePayments = schedule.filter(p => !p.isPast);
-  const totalScheduled = futurePayments.reduce((sum, p) => sum + p.amount, 0);
-  const isBalanced = Math.abs(totalScheduled - agreement.outstanding) < 0.01;
+  const totalScheduled = Math.round(futurePayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+  const isBalanced = Math.abs(totalScheduled - agreement.outstanding) < 0.005;
 
-  // Update payment amount and rebalance
+  // Update payment amount and rebalance with penny precision
   const updatePayment = (id: string, newAmount: number) => {
-    const amount = Math.max(0, Math.round(newAmount));
+    const amount = Math.max(0, Math.round(newAmount * 100) / 100); // Round to nearest penny
     
     setSchedule(prev => {
       const updated = [...prev];
@@ -82,7 +82,7 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       if (targetIndex === -1 || updated[targetIndex].isPast) return prev;
       
       const oldAmount = updated[targetIndex].amount;
-      const difference = amount - oldAmount;
+      const difference = Math.round((amount - oldAmount) * 100) / 100; // Penny precision difference
       
       // Update target payment
       updated[targetIndex].amount = amount;
@@ -92,37 +92,41 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
       
       if (otherFuturePayments.length === 0) return updated;
       
-      // Distribute the difference across other payments
-      const perPayment = Math.floor(Math.abs(difference) / otherFuturePayments.length);
-      let remainingDiff = Math.abs(difference) - (perPayment * otherFuturePayments.length);
+      // Distribute the difference across other payments with penny precision
+      const absDifference = Math.abs(difference);
+      const perPayment = Math.floor(absDifference * 100 / otherFuturePayments.length) / 100;
+      let remainingDiff = Math.round((absDifference - (perPayment * otherFuturePayments.length)) * 100) / 100;
       
       otherFuturePayments.forEach((payment, index) => {
         const paymentIndex = updated.findIndex(p => p.id === payment.id);
         if (paymentIndex === -1) return;
         
         let adjustment = perPayment;
-        if (index < remainingDiff) adjustment += 1;
+        if (remainingDiff > 0) {
+          adjustment += 0.01;
+          remainingDiff = Math.round((remainingDiff - 0.01) * 100) / 100;
+        }
         
         if (difference > 0) {
           // Target increased, decrease others
-          updated[paymentIndex].amount = Math.max(0, payment.amount - adjustment);
+          updated[paymentIndex].amount = Math.max(0, Math.round((payment.amount - adjustment) * 100) / 100);
         } else {
           // Target decreased, increase others
-          updated[paymentIndex].amount = payment.amount + adjustment;
+          updated[paymentIndex].amount = Math.round((payment.amount + adjustment) * 100) / 100;
         }
       });
       
       // Final balance correction - put any remaining difference in the last payment
-      const newTotal = updated.filter(p => !p.isPast).reduce((sum, p) => sum + p.amount, 0);
-      const finalDiff = agreement.outstanding - newTotal;
+      const newTotal = Math.round(updated.filter(p => !p.isPast).reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+      const finalDiff = Math.round((agreement.outstanding - newTotal) * 100) / 100;
       
-      if (Math.abs(finalDiff) > 0) {
+      if (Math.abs(finalDiff) > 0.005) { // Allow for small rounding errors
         const lastFutureIndex = updated.map((p, i) => ({ ...p, index: i }))
           .filter(p => !p.isPast)
           .pop()?.index;
           
         if (lastFutureIndex !== undefined) {
-          updated[lastFutureIndex].amount = Math.max(0, updated[lastFutureIndex].amount + finalDiff);
+          updated[lastFutureIndex].amount = Math.max(0, Math.round((updated[lastFutureIndex].amount + finalDiff) * 100) / 100);
         }
       }
       
@@ -250,16 +254,16 @@ export function RepaymentPlanner({ agreement }: RepaymentPlannerProps) {
                             <Input
                               type="number"
                               min="0"
-                              step="1"
-                              value={payment.amount}
+                              step="0.01"
+                              value={payment.amount.toFixed(2)}
                               onChange={(e) => updatePayment(payment.id, Number(e.target.value) || 0)}
-                              className="w-20 text-right"
+                              className="w-24 text-right"
                             />
                           </div>
                           <Slider
-                            value={[payment.amount]}
-                            onValueChange={(value) => updatePayment(payment.id, value[0])}
-                            max={agreement.outstanding}
+                            value={[Math.round(payment.amount * 100)]}
+                            onValueChange={(value) => updatePayment(payment.id, value[0] / 100)}
+                            max={Math.round(agreement.outstanding * 100)}
                             min={0}
                             step={1}
                             className="w-full"
