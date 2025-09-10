@@ -53,20 +53,6 @@ export function ProposalDetail() {
     }
   };
 
-  const handleAcceptProposal = () => {
-    if (proposal) {
-      proposal.status = 'accepted';
-      handleStepComplete('review');
-    }
-  };
-
-  const handleDeclineProposal = () => {
-    if (proposal) {
-      proposal.status = 'declined';
-      navigate('/app/proposals');
-    }
-  };
-
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
   const isStepCurrent = (stepId: string) => currentStep === stepId;
   const isStepAccessible = (stepId: string) => {
@@ -163,10 +149,8 @@ export function ProposalDetail() {
           {/* Step Content */}
           <div className="min-h-[600px]">
             {currentStep === 'review' && (
-              <ReviewProposal
-                proposal={proposal}
-                onAccept={handleAcceptProposal}
-                onDecline={handleDeclineProposal}
+              <ReviewProposal 
+                proposal={proposal} 
               />
             )}
             

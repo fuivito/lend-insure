@@ -8,11 +8,9 @@ import { Building2, Mail, Calendar, Shield, PoundSterling, Check, X } from 'luci
 
 interface ReviewProposalProps {
   proposal: Proposal;
-  onAccept: () => void;
-  onDecline: () => void;
 }
 
-export function ReviewProposal({ proposal, onAccept, onDecline }: ReviewProposalProps) {
+export function ReviewProposal({ proposal }: ReviewProposalProps) {
   return (
     <div className="space-y-6">
       {/* Broker Information */}
@@ -128,26 +126,6 @@ export function ReviewProposal({ proposal, onAccept, onDecline }: ReviewProposal
         </div>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Button 
-          onClick={onAccept}
-          className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
-          size="lg"
-        >
-          <Check className="h-5 w-5 mr-2" />
-          Accept Proposal
-        </Button>
-        <Button 
-          onClick={onDecline}
-          variant="outline"
-          size="lg"
-          className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-        >
-          <X className="h-5 w-5 mr-2" />
-          Decline
-        </Button>
-      </div>
     </div>
   );
 }
