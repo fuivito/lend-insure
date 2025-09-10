@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Proposal } from '@/types/proposals';
-import { CheckCircle, Download, FileText, Calendar, Mail, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Download, FileText, Calendar, Mail } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -254,12 +254,12 @@ END:VCALENDAR`;
         {/* CTA Button */}
         <div className="flex justify-center">
           <Button
-            onClick={() => navigate('/app/proposals')}
+            onClick={() => navigate('/app')}
             size="lg"
             className="flex items-center space-x-2"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Proposals</span>
+            <CheckCircle className="h-4 w-4" />
+            <span>Complete</span>
           </Button>
         </div>
       </Card>

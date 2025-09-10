@@ -32,15 +32,15 @@ interface FormData {
 
 export function CreditIdentity({ proposal, onContinue }: CreditIdentityProps) {
   const [formData, setFormData] = useState<FormData>({
-    companyName: '',
-    companyRegNo: '',
-    vatNumber: '',
-    registeredAddress: '',
+    companyName: 'Acme Insurance Ltd',
+    companyRegNo: '12345678',
+    vatNumber: 'GB123456789',
+    registeredAddress: '123 Business Park, London, EC1A 1BB',
     representative: {
-      name: '',
-      role: '',
-      email: '',
-      phone: ''
+      name: 'John Smith',
+      role: 'Managing Director',
+      email: 'j.smith@acmeinsurance.co.uk',
+      phone: '+44 20 7000 0000'
     },
     consents: {
       creditCheck: false,
