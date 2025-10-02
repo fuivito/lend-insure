@@ -1,21 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { ProposalCard } from '@/components/proposals/ProposalCard';
-import { mockProposals } from '@/lib/demo/proposals';
 import { Proposal } from '@/types/proposals';
-import { ScrollText, Search } from 'lucide-react';
+import { ScrollText, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { fetchProposals } from '@/lib/api/proposals';
+import { useToast } from '@/hooks/use-toast';
 
 export function ProposalsList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredProposals = mockProposals.filter(proposal => {
-    const matchesSearch = proposal.brokerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         proposal.insuranceType.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  useEffect(() => {
+    loadProposals();
+  }, [searchTerm]);
+
+  const loadProposals = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchProposals(searchTerm);
+      setProposals(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load proposals. Make sure the backend is running.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredProposals = proposals;
 
   const handleProposalClick = (proposal: Proposal) => {
     navigate(`/app/proposals/${proposal.id}`);
@@ -49,7 +69,12 @@ export function ProposalsList() {
 
       {/* Proposals List */}
       <div className="space-y-4 animate-fade-in">
-        {filteredProposals.length > 0 ? (
+        {isLoading ? (
+          <Card className="p-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-spin" />
+            <p className="text-lg font-medium">Loading proposals...</p>
+          </Card>
+        ) : filteredProposals.length > 0 ? (
           filteredProposals.map((proposal, index) => (
             <div
               key={proposal.id}

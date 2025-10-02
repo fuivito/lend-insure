@@ -5,7 +5,7 @@ from config import settings
 import uvicorn
 
 # Import routers
-from routers import health, clients, policies, agreements, dashboard
+from routers import health, clients, policies, agreements, dashboard, proposals
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -33,6 +33,7 @@ app.include_router(clients.router)
 app.include_router(policies.router)
 app.include_router(agreements.router)
 app.include_router(dashboard.router)
+app.include_router(proposals.router)
 
 if __name__ == "__main__":
     print(f"🚀 Starting Lendinsure Broker API on port {settings.PORT}")

@@ -9,10 +9,11 @@ import { CreditIdentity } from '@/components/proposals/steps/CreditIdentity';
 import { DigitalAgreement } from '@/components/proposals/steps/DigitalAgreement';
 import { PaymentSetup } from '@/components/proposals/steps/PaymentSetup';
 import { Confirmation } from '@/components/proposals/steps/Confirmation';
-import { mockProposals } from '@/lib/demo/proposals';
+import { fetchProposalById } from '@/lib/api/proposals';
 import { Proposal } from '@/types/proposals';
-import { ArrowLeft, CheckCircle, Circle, Clock, FileText, CreditCard, Shield, User, Download } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Circle, Clock, FileText, CreditCard, Shield, User, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const workflowSteps = [
   { id: 'review', title: 'Review Proposal', icon: FileText, description: 'Review terms and conditions' },
@@ -26,20 +27,34 @@ const workflowSteps = [
 export function ProposalDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [currentStep, setCurrentStep] = useState('review');
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
-      const found = mockProposals.find(p => p.id === id);
-      if (found) {
-        setProposal(found);
-      } else {
-        navigate('/app/proposals');
-      }
+      loadProposal(id);
     }
-  }, [id, navigate]);
+  }, [id]);
+
+  const loadProposal = async (proposalId: string) => {
+    try {
+      setIsLoading(true);
+      const data = await fetchProposalById(proposalId);
+      setProposal(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load proposal. Make sure the backend is running.",
+        variant: "destructive"
+      });
+      navigate('/app/proposals');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleStepComplete = (stepId: string) => {
     if (!completedSteps.includes(stepId)) {
@@ -60,6 +75,19 @@ export function ProposalDetail() {
     const currentIndex = workflowSteps.findIndex(step => step.id === currentStep);
     return stepIndex <= currentIndex || isStepCompleted(stepId);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <Card className="p-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-spin" />
+            <p className="text-lg font-medium">Loading proposal...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (!proposal) {
     return (

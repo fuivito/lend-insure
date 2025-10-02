@@ -2,9 +2,9 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine, Base
 from models import (
     Organisation, BrokerUser, Client, Policy, Agreement,
-    Instalment, AgreementEvent, CommissionLine,
+    Instalment, AgreementEvent, CommissionLine, Proposal,
     OrganisationStatusEnum, BrokerRoleEnum, AgreementStatusEnum,
-    InstalmentStatusEnum
+    InstalmentStatusEnum, ProposalStatusEnum
 )
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -133,6 +133,82 @@ def seed_database():
             currency="GBP"
         )
         db.add(commission)
+        
+        # Create proposals
+        proposal1 = Proposal(
+            id="prop-001",
+            organisation_id=org.id,
+            client_id=client.id,
+            broker_id=broker.id,
+            broker_name="Sarah Smith Insurance",
+            broker_email="sarah@smithinsurance.com",
+            insurance_type="Commercial Property",
+            total_premium=Decimal("28500.00"),
+            currency="GBP",
+            expiry_date=datetime(2025, 1, 15),
+            status=ProposalStatusEnum.NEW,
+            created_at=datetime(2024, 12, 1, 10, 0, 0),
+            updated_at=datetime(2024, 12, 1, 10, 0, 0),
+            terms={
+                "totalPremiumFinanced": 28500,
+                "suggestedPlan": {
+                    "instalments": 12,
+                    "monthlyAmount": 2653
+                },
+                "apr": 8.4,
+                "fees": {
+                    "lendinsure": {
+                        "percentage": 5.4,
+                        "amount": 1539
+                    },
+                    "broker": {
+                        "percentage": 2.0,
+                        "amount": 570
+                    }
+                },
+                "totalCostOfFinance": 2109,
+                "totalRepayable": 30609
+            }
+        )
+        db.add(proposal1)
+        
+        proposal2 = Proposal(
+            id="prop-002",
+            organisation_id=org.id,
+            client_id=client.id,
+            broker_id=broker.id,
+            broker_name="Sarah Smith Insurance",
+            broker_email="sarah@smithinsurance.com",
+            insurance_type="Directors & Officers",
+            total_premium=Decimal("15750.00"),
+            currency="GBP",
+            expiry_date=datetime(2025, 1, 22),
+            status=ProposalStatusEnum.NEW,
+            created_at=datetime(2024, 11, 28, 14, 30, 0),
+            updated_at=datetime(2024, 12, 3, 9, 15, 0),
+            terms={
+                "totalPremiumFinanced": 15750,
+                "suggestedPlan": {
+                    "instalments": 9,
+                    "monthlyAmount": 1925
+                },
+                "apr": 7.9,
+                "fees": {
+                    "lendinsure": {
+                        "percentage": 5.4,
+                        "amount": 851
+                    },
+                    "broker": {
+                        "percentage": 2.0,
+                        "amount": 315
+                    }
+                },
+                "totalCostOfFinance": 1166,
+                "totalRepayable": 16916
+            }
+        )
+        db.add(proposal2)
+        print("✅ Created 2 proposals")
         
         db.commit()
         print("🎉 Seeding completed successfully!")

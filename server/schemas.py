@@ -1,8 +1,8 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 from decimal import Decimal
-from models import BrokerRoleEnum, AgreementStatusEnum, InstalmentStatusEnum, PaymentStatusEnum, OrganisationStatusEnum
+from models import BrokerRoleEnum, AgreementStatusEnum, InstalmentStatusEnum, PaymentStatusEnum, OrganisationStatusEnum, ProposalStatusEnum
 
 # Client schemas
 class ClientCreate(BaseModel):
@@ -99,6 +99,25 @@ class DashboardResponse(BaseModel):
     terminated: int
     revenue_ytd: Decimal
     notifications: List[dict]
+
+# Proposal schemas
+class ProposalResponse(BaseModel):
+    id: str
+    broker_id: str
+    broker_name: str
+    broker_email: str
+    insurance_type: str
+    total_premium: Decimal
+    currency: str
+    expiry_date: datetime
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    terms: Any
+    custom_schedule: Optional[Any] = None
+    
+    class Config:
+        from_attributes = True
 
 # Pagination
 class PaginationMeta(BaseModel):

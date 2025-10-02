@@ -37,6 +37,13 @@ class OrganisationStatusEnum(str, enum.Enum):
     SUSPENDED = "SUSPENDED"
     INACTIVE = "INACTIVE"
 
+class ProposalStatusEnum(str, enum.Enum):
+    NEW = "new"
+    VIEWED = "viewed"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
 class Organisation(Base):
     __tablename__ = "organisations"
     
@@ -51,6 +58,7 @@ class Organisation(Base):
     policies = relationship("Policy", back_populates="organisation", cascade="all, delete-orphan")
     agreements = relationship("Agreement", back_populates="organisation", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="organisation", cascade="all, delete-orphan")
+    proposals = relationship("Proposal", back_populates="organisation", cascade="all, delete-orphan")
 
 class BrokerUser(Base):
     __tablename__ = "broker_users"
@@ -257,4 +265,33 @@ class AuditLog(Base):
     __table_args__ = (
         Index('idx_audit_logs_organisation_id', 'organisation_id'),
         Index('idx_audit_logs_created_at', 'created_at'),
+    )
+
+class Proposal(Base):
+    __tablename__ = "proposals"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(String, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    broker_id = Column(String, ForeignKey("broker_users.id", ondelete="CASCADE"), nullable=False)
+    broker_name = Column(String, nullable=False)
+    broker_email = Column(String, nullable=False)
+    insurance_type = Column(String, nullable=False)
+    total_premium = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String, default="GBP")
+    expiry_date = Column(DateTime(timezone=True), nullable=False)
+    status = Column(Enum(ProposalStatusEnum), default=ProposalStatusEnum.NEW)
+    terms = Column(JSON, nullable=False)
+    custom_schedule = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    organisation = relationship("Organisation", back_populates="proposals")
+    client = relationship("Client")
+    broker = relationship("BrokerUser")
+    
+    __table_args__ = (
+        Index('idx_proposals_organisation_id', 'organisation_id'),
+        Index('idx_proposals_client_id', 'client_id'),
+        Index('idx_proposals_status', 'status'),
     )
