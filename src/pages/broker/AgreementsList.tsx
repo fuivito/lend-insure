@@ -19,13 +19,13 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockBrokerAgreements } from '@/lib/demo/brokerAgreements';
-import { mockBrokerClients } from '@/lib/demo/brokerClients';
-import { Search, Filter } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAgreements } from '@/hooks/useAgreements';
+import { Search, Filter, Loader2 } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 8;
 
-type StatusFilter = 'all' | 'Active' | 'Pending' | 'Completed' | 'Defaulted';
+type StatusFilter = 'all' | 'ACTIVE' | 'PROPOSED' | 'SIGNED' | 'TERMINATED' | 'DEFAULTED' | 'DRAFT';
 
 export function AgreementsList() {
   const navigate = useNavigate();
@@ -33,29 +33,12 @@ export function AgreementsList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Create a map of client IDs to client names for quick lookup
-  const clientMap = mockBrokerClients.reduce((acc, client) => {
-    acc[client.id] = client.name;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Filter agreements based on search query and status
-  const filteredAgreements = mockBrokerAgreements.filter(agreement => {
-    const clientName = clientMap[agreement.clientId] || 'Unknown Client';
-    const matchesSearch = 
-      agreement.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agreement.policyType.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || agreement.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  // Paginate filtered results
-  const totalPages = Math.ceil(filteredAgreements.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedAgreements = filteredAgreements.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const { agreements, isLoading, error, totalPages } = useAgreements(
+    statusFilter === 'all' ? undefined : statusFilter,
+    undefined,
+    currentPage,
+    ITEMS_PER_PAGE
+  );
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -72,20 +55,17 @@ export function AgreementsList() {
     }).format(amount);
   };
 
-  // Calculate broker revenue (mock calculation - 2% of premium)
-  const calculateBrokerRevenue = (premium: number) => {
-    return premium * 0.02;
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Active':
+      case 'ACTIVE':
         return 'bg-green-100 text-green-800 border-green-200';
-      case 'Pending':
+      case 'PROPOSED':
+      case 'DRAFT':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Completed':
+      case 'SIGNED':
+      case 'TERMINATED':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Defaulted':
+      case 'DEFAULTED':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -94,12 +74,12 @@ export function AgreementsList() {
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
   const handleStatusFilterChange = (value: StatusFilter) => {
     setStatusFilter(value);
-    setCurrentPage(1); // Reset to first page on filter change
+    setCurrentPage(1);
   };
 
   const handleRowClick = (agreementId: string) => {
@@ -122,7 +102,7 @@ export function AgreementsList() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search by agreement ID, client, or policy type..."
+              placeholder="Search by agreement ID or policy type..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
@@ -137,122 +117,115 @@ export function AgreementsList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Defaulted">Defaulted</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="PROPOSED">Proposed</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="SIGNED">Signed</SelectItem>
+                <SelectItem value="TERMINATED">Terminated</SelectItem>
+                <SelectItem value="DEFAULTED">Defaulted</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
       </div>
 
-      {/* Agreements Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agreement ID</TableHead>
-                <TableHead>Client Name</TableHead>
-                <TableHead>Policy Type</TableHead>
-                <TableHead className="hidden md:table-cell">Start Date</TableHead>
-                <TableHead className="hidden md:table-cell">End Date</TableHead>
-                <TableHead className="text-right">APR</TableHead>
-                <TableHead className="text-right hidden sm:table-cell">Broker Revenue</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedAgreements.map((agreement) => (
-                <TableRow 
-                  key={agreement.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleRowClick(agreement.id)}
-                >
-                  <TableCell className="font-medium">{agreement.id}</TableCell>
-                  <TableCell>{clientMap[agreement.clientId] || 'Unknown Client'}</TableCell>
-                  <TableCell className="text-muted-foreground">{agreement.policyType}</TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">
-                    {formatDate(agreement.startDate)}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">
-                    {formatDate(agreement.endDate)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">{agreement.apr}%</TableCell>
-                  <TableCell className="text-right font-medium hidden sm:table-cell">
-                    {formatCurrency(calculateBrokerRevenue(agreement.premium))}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={getStatusColor(agreement.status)}
-                    >
-                      {agreement.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filteredAgreements.length)} of {filteredAgreements.length} agreements
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const page = i + 1;
-              const isVisible = page === 1 || page === totalPages || 
-                (page >= currentPage - 1 && page <= currentPage + 1);
-              
-              if (!isVisible && totalPages > 5) {
-                if (page === 2 && currentPage > 4) return <span key="start-ellipsis">...</span>;
-                if (page === totalPages - 1 && currentPage < totalPages - 3) return <span key="end-ellipsis">...</span>;
-                return null;
-              }
-              
-              return (
-                <Button
-                  key={page}
-                  variant={currentPage === page ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCurrentPage(page)}
-                  className="w-8 h-8 p-0"
-                >
-                  {page}
-                </Button>
-              );
-            })}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* Empty State */}
-      {filteredAgreements.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No agreements found matching your criteria.</p>
+      {/* Agreements Table */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : (
+        <>
+          <Card>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agreement ID</TableHead>
+                    <TableHead>Policy ID</TableHead>
+                    <TableHead className="text-right">Principal</TableHead>
+                    <TableHead className="text-right">APR</TableHead>
+                    <TableHead className="text-center">Term</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {agreements.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No agreements found matching your criteria.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    agreements.map((agreement) => (
+                      <TableRow 
+                        key={agreement.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleRowClick(agreement.id)}
+                      >
+                        <TableCell className="font-medium">
+                          {agreement.id.slice(0, 8)}...
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {agreement.policy_id.slice(0, 8)}...
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(agreement.principal_amount_pennies / 100)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {(agreement.apr_bps / 100).toFixed(2)}%
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {agreement.term_months} months
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={getStatusColor(agreement.status)}
+                          >
+                            {agreement.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <div className="text-sm text-muted-foreground px-4">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

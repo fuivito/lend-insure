@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockBrokerClients, type BrokerClient } from '@/lib/demo/brokerClients';
-import { Search, Plus } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useClients } from '@/hooks/useClients';
+import { Search, Plus, Loader2 } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -22,16 +23,7 @@ export function ClientsList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter clients based on search query
-  const filteredClients = mockBrokerClients.filter(client =>
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Paginate filtered results
-  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const { clients, isLoading, error, totalPages } = useClients(searchQuery, currentPage, ITEMS_PER_PAGE);
 
   const handleClientClick = (clientId: string) => {
     navigate(`/app/broker/clients/${clientId}`);
@@ -68,7 +60,7 @@ export function ClientsList() {
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setCurrentPage(1); // Reset to first page on search
+              setCurrentPage(1);
             }}
             className="pl-10"
           />
@@ -79,87 +71,101 @@ export function ClientsList() {
         </Button>
       </div>
 
-      {/* Clients Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead className="hidden sm:table-cell">Phone</TableHead>
-                <TableHead className="text-center"># Agreements</TableHead>
-                <TableHead className="hidden md:table-cell">Last Activity</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedClients.map((client) => (
-                <TableRow 
-                  key={client.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleClientClick(client.id)}
-                >
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{client.email}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">
-                    {client.phone}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary">{client.agreementCount}</Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">
-                    {formatDate(client.lastActivity)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filteredClients.length)} of {filteredClients.length} clients
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                size="sm"
-                onClick={() => setCurrentPage(page)}
-                className="w-8 h-8 p-0"
-              >
-                {page}
-              </Button>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* Empty State */}
-      {filteredClients.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No clients found matching your search.</p>
+      {/* Clients Table */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : (
+        <>
+          <Card>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="hidden sm:table-cell">Phone</TableHead>
+                    <TableHead className="hidden md:table-cell">Last Activity</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        No clients found matching your search.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    clients.map((client) => (
+                      <TableRow 
+                        key={client.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleClientClick(client.id)}
+                      >
+                        <TableCell className="font-medium">
+                          {client.first_name} {client.last_name}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{client.email}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-muted-foreground">
+                          {client.phone || 'N/A'}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">
+                          {formatDate(client.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className="w-8 h-8 p-0"
+                  >
+                    {page}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
