@@ -12,6 +12,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def root():
+    return {"ok": True, "service": "lendinsure-api"}
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
