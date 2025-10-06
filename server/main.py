@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
-from config import settings
-import uvicorn
+# from database import engine, Base
+# from config import settings
+# import uvicorn
 
 # Import routers
-from routers import health, clients, policies, agreements, dashboard, proposals
+# from routers import health, clients, policies, agreements, dashboard, proposals
 
 # Create tables
 Base.metadata.create_all(bind=engine)
