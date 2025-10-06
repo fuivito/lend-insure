@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # from routers import health, clients, policies, agreements, dashboard, proposals
 
 # Create tables
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 # app = FastAPI(
 #     title="Lendinsure Broker API",
