@@ -1,0 +1,50 @@
+# UI Catalog
+
+This file lists additional primitives with source references for prop discovery. Follow the import paths in code for detailed props.
+
+- Accordion — `src/components/ui/accordion.tsx`
+- Alert — `src/components/ui/alert.tsx`
+- AlertDialog — `src/components/ui/alert-dialog.tsx`
+- AspectRatio — `src/components/ui/aspect-ratio.tsx`
+- Avatar — `src/components/ui/avatar.tsx`
+- Badge — `src/components/ui/badge.tsx`
+- Breadcrumb — `src/components/ui/breadcrumb.tsx`
+- Calendar — `src/components/ui/calendar.tsx`
+- Card — `src/components/ui/card.tsx`
+- Carousel — `src/components/ui/carousel.tsx`
+- Chart — `src/components/ui/chart.tsx`
+- Checkbox — `src/components/ui/checkbox.tsx`
+- Collapsible — `src/components/ui/collapsible.tsx`
+- Command — `src/components/ui/command.tsx`
+- ContextMenu — `src/components/ui/context-menu.tsx`
+- Drawer — `src/components/ui/drawer.tsx`
+- DropdownMenu — `src/components/ui/dropdown-menu.tsx`
+- Form — `src/components/ui/form.tsx`
+- HoverCard — `src/components/ui/hover-card.tsx`
+- Input — `src/components/ui/input.tsx`
+- InputOTP — `src/components/ui/input-otp.tsx`
+- Label — `src/components/ui/label.tsx`
+- Menubar — `src/components/ui/menubar.tsx`
+- NavigationMenu — `src/components/ui/navigation-menu.tsx`
+- Pagination — `src/components/ui/pagination.tsx`
+- Popover — `src/components/ui/popover.tsx`
+- Progress — `src/components/ui/progress.tsx`
+- RadioGroup — `src/components/ui/radio-group.tsx`
+- Resizable — `src/components/ui/resizable.tsx`
+- ScrollArea — `src/components/ui/scroll-area.tsx`
+- Select — `src/components/ui/select.tsx`
+- Separator — `src/components/ui/separator.tsx`
+- Sheet — `src/components/ui/sheet.tsx`
+- Sidebar — `src/components/ui/sidebar.tsx`
+- Skeleton — `src/components/ui/skeleton.tsx`
+- Slider — `src/components/ui/slider.tsx`
+- Sonner (Toasts) — `src/components/ui/sonner.tsx`
+- StatCard — `src/components/ui/StatCard.tsx`
+- Switch — `src/components/ui/switch.tsx`
+- Table — `src/components/ui/table.tsx`
+- Tabs — `src/components/ui/tabs.tsx`
+- Textarea — `src/components/ui/textarea.tsx`
+- Toast Provider — `src/components/ui/toast.tsx` and `src/components/ui/toaster.tsx`
+- Toggle — `src/components/ui/toggle.tsx`
+- ToggleGroup — `src/components/ui/toggle-group.tsx`
+- Tooltip — `src/components/ui/tooltip.tsx`
