@@ -17,3 +17,4 @@ def check_organisation_access(auth: AuthContext, organisation_id: str) -> bool:
         return True
     # Other roles can only access their own organisation
     return auth.organisation_id == organisation_id
+    

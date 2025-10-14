@@ -8,24 +8,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { mockExtractedData, type ExtractedClientData } from '@/lib/demo/ocrExtraction';
+import { apiClient } from '@/lib/api/client';
 import { Upload, FileText, Check, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface ClientFormData {
-  name: string;
-  dateOfBirth: string;
-  address: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
-  policyRef: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  postcode: string;
 }
 
 const initialFormData: ClientFormData = {
-  name: '',
-  dateOfBirth: '',
-  address: '',
+  firstName: '',
+  lastName: '',
   email: '',
   phone: '',
-  policyRef: ''
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  postcode: ''
 };
 
 export function AddClient() {
@@ -46,13 +51,20 @@ export function AddClient() {
     // Mock processing delay
     setTimeout(() => {
       setExtractedData(mockExtractedData);
+      // Parse the extracted name into first and last name
+      const nameParts = mockExtractedData.name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       setFormData({
-        name: mockExtractedData.name,
-        dateOfBirth: mockExtractedData.dateOfBirth,
-        address: mockExtractedData.address,
+        firstName,
+        lastName,
         email: mockExtractedData.email,
         phone: mockExtractedData.phone,
-        policyRef: mockExtractedData.policyRef
+        addressLine1: mockExtractedData.address,
+        addressLine2: '',
+        city: '',
+        postcode: ''
       });
       setIsProcessing(false);
     }, 2000);
@@ -72,14 +84,21 @@ export function AddClient() {
       // Mock processing delay
       setTimeout(() => {
         setExtractedData(mockExtractedData);
-        setFormData({
-          name: mockExtractedData.name,
-          dateOfBirth: mockExtractedData.dateOfBirth,
-          address: mockExtractedData.address,
-          email: mockExtractedData.email,
-          phone: mockExtractedData.phone,
-          policyRef: mockExtractedData.policyRef
-        });
+      // Parse the extracted name into first and last name
+      const nameParts = mockExtractedData.name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      setFormData({
+        firstName,
+        lastName,
+        email: mockExtractedData.email,
+        phone: mockExtractedData.phone,
+        addressLine1: mockExtractedData.address,
+        addressLine2: '',
+        city: '',
+        postcode: ''
+      });
         setIsProcessing(false);
       }, 2000);
     }
@@ -89,12 +108,29 @@ export function AddClient() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    console.log('Saving client:', formData);
-    console.log('Extracted data confidence:', extractedData?.confidence);
-    // Mock save success
-    alert('Client saved successfully!');
-    navigate('/app/broker/clients');
+  const handleSubmit = async () => {
+    try {
+      console.log('Saving client:', formData);
+      
+      // Convert form data to API format
+      const clientData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        address_line1: formData.addressLine1,
+        address_line2: formData.addressLine2,
+        city: formData.city,
+        postcode: formData.postcode
+      };
+      
+      await apiClient.createClient(clientData);
+      alert('Client saved successfully!');
+      navigate('/app/broker/clients');
+    } catch (error) {
+      console.error('Error saving client:', error);
+      alert('Failed to save client. Please try again.');
+    }
   };
 
   const getConfidenceColor = (confidence: number) => {
@@ -198,7 +234,7 @@ export function AddClient() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="extracted-name">Name</Label>
+                      <Label htmlFor="extracted-firstname">First Name</Label>
                       <Badge 
                         variant="outline" 
                         className={`text-xs ${getConfidenceColor(extractedData.confidence.name)}`}
@@ -208,28 +244,27 @@ export function AddClient() {
                       </Badge>
                     </div>
                     <Input
-                      id="extracted-name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      id="extracted-firstname"
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
                     />
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="extracted-dob">Date of Birth</Label>
+                      <Label htmlFor="extracted-lastname">Last Name</Label>
                       <Badge 
                         variant="outline" 
-                        className={`text-xs ${getConfidenceColor(extractedData.confidence.dateOfBirth)}`}
+                        className={`text-xs ${getConfidenceColor(extractedData.confidence.name)}`}
                       >
-                        {getConfidenceIcon(extractedData.confidence.dateOfBirth)}
-                        {extractedData.confidence.dateOfBirth}%
+                        {getConfidenceIcon(extractedData.confidence.name)}
+                        {extractedData.confidence.name}%
                       </Badge>
                     </div>
                     <Input
-                      id="extracted-dob"
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                      id="extracted-lastname"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
                     />
                   </div>
 
@@ -270,28 +305,11 @@ export function AddClient() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="extracted-policy">Policy Reference</Label>
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs ${getConfidenceColor(extractedData.confidence.policyRef)}`}
-                      >
-                        {getConfidenceIcon(extractedData.confidence.policyRef)}
-                        {extractedData.confidence.policyRef}%
-                      </Badge>
-                    </div>
-                    <Input
-                      id="extracted-policy"
-                      value={formData.policyRef}
-                      onChange={(e) => handleInputChange('policyRef', e.target.value)}
-                    />
-                  </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="extracted-address">Address</Label>
+                    <Label>Address</Label>
                     <Badge 
                       variant="outline" 
                       className={`text-xs ${getConfidenceColor(extractedData.confidence.address)}`}
@@ -300,12 +318,44 @@ export function AddClient() {
                       {extractedData.confidence.address}%
                     </Badge>
                   </div>
-                  <Textarea
-                    id="extracted-address"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                    rows={3}
-                  />
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="extracted-address1">Address Line 1</Label>
+                      <Input
+                        id="extracted-address1"
+                        value={formData.addressLine1}
+                        onChange={(e) => handleInputChange('addressLine1', e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="extracted-address2">Address Line 2</Label>
+                      <Input
+                        id="extracted-address2"
+                        value={formData.addressLine2}
+                        onChange={(e) => handleInputChange('addressLine2', e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="extracted-city">City</Label>
+                      <Input
+                        id="extracted-city"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="extracted-postcode">Postcode</Label>
+                      <Input
+                        id="extracted-postcode"
+                        value={formData.postcode}
+                        onChange={(e) => handleInputChange('postcode', e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -323,22 +373,22 @@ export function AddClient() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="manual-name">Name *</Label>
+                  <Label htmlFor="manual-firstname">First Name *</Label>
                   <Input
-                    id="manual-name"
-                    placeholder="Full name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    id="manual-firstname"
+                    placeholder="First name"
+                    value={formData.firstName}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="manual-dob">Date of Birth</Label>
+                  <Label htmlFor="manual-lastname">Last Name *</Label>
                   <Input
-                    id="manual-dob"
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                    id="manual-lastname"
+                    placeholder="Last name"
+                    value={formData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
                   />
                 </div>
 
@@ -362,27 +412,51 @@ export function AddClient() {
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="manual-policy">Policy Reference</Label>
-                  <Input
-                    id="manual-policy"
-                    placeholder="POL-2024-000000"
-                    value={formData.policyRef}
-                    onChange={(e) => handleInputChange('policyRef', e.target.value)}
-                  />
-                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="manual-address">Address</Label>
-                <Textarea
-                  id="manual-address"
-                  placeholder="Full address including postcode"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange('address', e.target.value)}
-                  rows={3}
-                />
+              <div className="space-y-4">
+                <Label>Address</Label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-address1">Address Line 1</Label>
+                    <Input
+                      id="manual-address1"
+                      placeholder="Street address"
+                      value={formData.addressLine1}
+                      onChange={(e) => handleInputChange('addressLine1', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-address2">Address Line 2</Label>
+                    <Input
+                      id="manual-address2"
+                      placeholder="Apartment, suite, etc."
+                      value={formData.addressLine2}
+                      onChange={(e) => handleInputChange('addressLine2', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-city">City</Label>
+                    <Input
+                      id="manual-city"
+                      placeholder="City"
+                      value={formData.city}
+                      onChange={(e) => handleInputChange('city', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-postcode">Postcode</Label>
+                    <Input
+                      id="manual-postcode"
+                      placeholder="SW1A 1AA"
+                      value={formData.postcode}
+                      onChange={(e) => handleInputChange('postcode', e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -399,7 +473,7 @@ export function AddClient() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={!formData.name || !formData.email}
+          disabled={!formData.firstName || !formData.lastName || !formData.email}
         >
           Save Client
         </Button>

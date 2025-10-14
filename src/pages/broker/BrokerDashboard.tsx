@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/badge";
-import { mockBrokerStats, mockBrokerNotifications } from "@/lib/demo/brokerDashboard";
+import { useBrokerDashboard } from "@/hooks/useBrokerDashboard";
 import { 
   FileCheck, 
   AlertTriangle, 
@@ -33,8 +33,50 @@ const notificationColors = {
 };
 
 export default function BrokerDashboard() {
-  const stats = mockBrokerStats;
-  const notifications = mockBrokerNotifications;
+  const { stats, isLoading, error } = useBrokerDashboard();
+  
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-foreground">Broker Dashboard</h1>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-foreground">Broker Dashboard</h1>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-red-600">Error loading dashboard: {error}</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!stats) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-foreground">Broker Dashboard</h1>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No data available</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const notifications = stats.notifications || [];
 
   return (
     <div className="space-y-6">
@@ -51,28 +93,28 @@ export default function BrokerDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Active Agreements"
-          value={stats.activeAgreements.count}
-          subtitle={`£${stats.activeAgreements.totalFinanced.toLocaleString()} financed`}
+          value={stats.active_agreements}
+          subtitle="Currently active"
           icon={<FileCheck className="h-6 w-6" />}
           variant="primary"
         />
         <StatCard
           title="Defaults"
-          value={`${stats.defaults.count} (${stats.defaults.percentage}%)`}
+          value={stats.defaults}
           subtitle="Out of active agreements"
           icon={<AlertTriangle className="h-6 w-6" />}
           variant="warning"
         />
         <StatCard
           title="Terminated Agreements"
-          value={stats.terminatedAgreements.count}
+          value={stats.terminated}
           subtitle="This year"
           icon={<FileX className="h-6 w-6" />}
           variant="destructive"
         />
         <StatCard
           title="Revenue YTD"
-          value={`£${stats.revenueYTD.toLocaleString()}`}
+          value={`£${stats.revenue_ytd.toLocaleString()}`}
           subtitle="Year to date earnings"
           icon={<TrendingUp className="h-6 w-6" />}
           variant="primary"
@@ -99,14 +141,11 @@ export default function BrokerDashboard() {
                   <p className="text-sm font-medium text-foreground">
                     {notification.message}
                   </p>
-                  {notification.clientName && (
-                    <p className="text-xs text-muted-foreground">
-                      Client: {notification.clientName}
-                      {notification.policyRef && ` • ${notification.policyRef}`}
-                    </p>
-                  )}
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(notification.date), { addSuffix: true })}
+                    Agreement: {notification.agreement_id}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
                   </p>
                 </div>
               </div>

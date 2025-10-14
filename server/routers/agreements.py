@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
-from database import get_db
-from middleware.auth import AuthContext, get_auth_context
-from middleware.rbac import require_role
-import models
-import schemas
+from ..database import get_db
+from ..middleware.auth import AuthContext, get_auth_context
+from ..middleware.rbac import require_role
+from .. import models
+from .. import schemas
 import math
 
 router = APIRouter(prefix="/api/broker/agreements", tags=["Broker - Agreements"])
@@ -90,27 +90,27 @@ async def create_agreement(
         raise HTTPException(status_code=404, detail="Client or policy not found")
     
     # Calculate instalment schedule
-    principal = float(agreement_data.principal_amount)
+    principal = agreement_data.principal_amount_pennies / 100  # Convert pennies to pounds
     term_months = agreement_data.term_months
     apr_bps = agreement_data.apr_bps
     monthly_rate = (apr_bps / 10000) / 12
     monthly_payment = principal * monthly_rate / (1 - pow(1 + monthly_rate, -term_months))
     
-    start_date = agreement_data.start_date or datetime.utcnow()
-    end_date = start_date + timedelta(days=term_months * 30)
+    signed_at = agreement_data.signed_at or datetime.utcnow()
+    activated_at = signed_at + timedelta(days=1)  # Assume activated next day
     
     # Create agreement
     agreement = models.Agreement(
         organisation_id=auth.organisation_id,
         client_id=agreement_data.client_id,
         policy_id=agreement_data.policy_id,
-        principal_amount=agreement_data.principal_amount,
+        principal_amount_pennies=agreement_data.principal_amount_pennies,
         apr_bps=agreement_data.apr_bps,
         term_months=agreement_data.term_months,
+        broker_fee_bps=agreement_data.broker_fee_bps,
         status=models.AgreementStatusEnum.DRAFT,
-        start_date=start_date,
-        end_date=end_date,
-        outstanding_amount=agreement_data.principal_amount
+        signed_at=signed_at,
+        activated_at=activated_at
     )
     
     db.add(agreement)
@@ -118,7 +118,7 @@ async def create_agreement(
     
     # Create instalments
     for i in range(term_months):
-        due_date = start_date + timedelta(days=i * 30)
+        due_date = signed_at + timedelta(days=i * 30)
         instalment = models.Instalment(
             agreement_id=agreement.id,
             sequence=i + 1,
@@ -129,14 +129,7 @@ async def create_agreement(
         )
         db.add(instalment)
     
-    # Create event
-    event = models.AgreementEvent(
-        agreement_id=agreement.id,
-        type="AGREEMENT_CREATED",
-        actor_type=auth.role,
-        meta={"user_id": auth.user_id}
-    )
-    db.add(event)
+    # Note: AgreementEvent model doesn't exist in current database, skipping event creation
     
     # Audit log
     audit_log = models.AuditLog(
@@ -175,14 +168,7 @@ async def propose_agreement(
     
     agreement.status = models.AgreementStatusEnum.PROPOSED
     
-    # Create event
-    event = models.AgreementEvent(
-        agreement_id=id,
-        type="AGREEMENT_PROPOSED",
-        actor_type=auth.role,
-        meta={"user_id": auth.user_id}
-    )
-    db.add(event)
+    # Note: AgreementEvent model doesn't exist in current database, skipping event creation
     
     db.commit()
     db.refresh(agreement)

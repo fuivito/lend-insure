@@ -10,8 +10,10 @@ class ClientCreate(BaseModel):
     last_name: str
     email: EmailStr
     phone: Optional[str] = None
-    dob: Optional[datetime] = None
-    address: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    postcode: Optional[str] = None
 
 class ClientResponse(BaseModel):
     id: str
@@ -20,8 +22,10 @@ class ClientResponse(BaseModel):
     last_name: str
     email: str
     phone: Optional[str]
-    dob: Optional[datetime]
-    address: Optional[str]
+    address_line1: Optional[str]
+    address_line2: Optional[str]
+    city: Optional[str]
+    postcode: Optional[str]
     created_at: datetime
     updated_at: Optional[datetime]
     
@@ -57,24 +61,26 @@ class PolicyResponse(BaseModel):
 class AgreementCreate(BaseModel):
     client_id: str
     policy_id: str
-    principal_amount: Decimal
+    principal_amount_pennies: int  # Amount in pennies
     apr_bps: int
     term_months: int
-    start_date: Optional[datetime] = None
+    broker_fee_bps: int
+    signed_at: Optional[datetime] = None
 
 class AgreementResponse(BaseModel):
     id: str
     organisation_id: str
     client_id: str
     policy_id: str
-    principal_amount: Decimal
+    principal_amount_pennies: int  # Amount in pennies
     apr_bps: int
     term_months: int
+    broker_fee_bps: int
     status: AgreementStatusEnum
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
-    outstanding_amount: Decimal
+    signed_at: Optional[datetime]
+    activated_at: Optional[datetime]
     created_at: datetime
+    updated_at: Optional[datetime]
     
     class Config:
         from_attributes = True
