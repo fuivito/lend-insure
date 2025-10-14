@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from middleware.auth import AuthContext
+from ..middleware.auth import AuthContext
 
 def require_role(*allowed_roles: str):
     def decorator(auth: AuthContext):
