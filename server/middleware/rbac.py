@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from ..middleware.auth import AuthContext
+from middleware.auth import AuthContext
 
 def require_role(*allowed_roles: str):
     def decorator(auth: AuthContext):
@@ -17,4 +17,3 @@ def check_organisation_access(auth: AuthContext, organisation_id: str) -> bool:
         return True
     # Other roles can only access their own organisation
     return auth.organisation_id == organisation_id
-    

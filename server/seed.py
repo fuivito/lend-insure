@@ -54,8 +54,9 @@ def seed_database():
             last_name="Doe",
             email="john.doe@example.com",
             phone="+44 20 7123 4567",
-            dob=datetime(1985, 6, 15),
-            address="123 High Street, London, SW1A 1AA"
+            address_line1="123 High Street",
+            city="London",
+            postcode="SW1A 1AA"
         )
         db.add(client)
         db.flush()
@@ -77,23 +78,24 @@ def seed_database():
         print(f"✅ Created policy: {policy.policy_number}")
         
         # Create agreement
-        principal_amount = Decimal("1200.00")
+        principal_amount_pennies = 120000  # £1200 in pennies
         term_months = 12
         apr_bps = 995
+        broker_fee_bps = 200  # 2% broker fee
         monthly_rate = (apr_bps / 10000) / 12
-        monthly_payment = float(principal_amount) * monthly_rate / (1 - pow(1 + monthly_rate, -term_months))
+        monthly_payment = float(principal_amount_pennies / 100) * monthly_rate / (1 - pow(1 + monthly_rate, -term_months))
         
         agreement = Agreement(
             organisation_id=org.id,
             client_id=client.id,
             policy_id=policy.id,
-            principal_amount=principal_amount,
+            principal_amount_pennies=principal_amount_pennies,
             apr_bps=apr_bps,
             term_months=term_months,
+            broker_fee_bps=broker_fee_bps,
             status=AgreementStatusEnum.ACTIVE,
-            start_date=datetime(2024, 1, 1),
-            end_date=datetime(2024, 12, 31),
-            outstanding_amount=principal_amount
+            signed_at=datetime(2024, 1, 1),
+            activated_at=datetime(2024, 1, 2)
         )
         db.add(agreement)
         db.flush()

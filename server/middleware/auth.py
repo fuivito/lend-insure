@@ -1,7 +1,7 @@
 from fastapi import Header, HTTPException, Depends
 from typing import Optional
 from jose import jwt, JWTError
-from ..config import settings
+from config import settings
 
 class AuthContext:
     def __init__(self, user_id: str, organisation_id: str, role: str):

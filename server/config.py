@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     class Config:
         print("Config class")
-        env_file = "server/.env"
+        env_file = ".env"
         # model_config = SettingsConfigDict(env_file='.env')
 
 settings = Settings()

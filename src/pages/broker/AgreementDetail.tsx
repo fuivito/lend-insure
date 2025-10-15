@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { mockBrokerAgreements } from '@/lib/demo/brokerAgreements';
+import { useAgreement } from '@/hooks/useAgreement';
 import { mockBrokerClients } from '@/lib/demo/brokerClients';
 import { 
   mockAgreementDocuments, 
@@ -27,7 +27,8 @@ import {
   Circle,
   AlertCircle,
   Clock,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 
 export function AgreementDetail() {
@@ -35,25 +36,39 @@ export function AgreementDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Find the agreement
-  const agreement = mockBrokerAgreements.find(a => a.id === id);
+  // Fetch agreement from API
+  const { agreement, isLoading, error } = useAgreement(id);
   
-  // Find the client
-  const client = agreement ? mockBrokerClients.find(c => c.id === agreement.clientId) : null;
+  // Find the client (using mock data for now)
+  const client = agreement ? mockBrokerClients.find(c => c.id === agreement.client_id) : null;
   
-  // Get documents and activity
+  // Get documents and activity (using mock data for now)
   const documents = id ? mockAgreementDocuments[id] || [] : [];
   const activities = id ? mockAgreementActivity[id] || [] : [];
   
   // Get status timeline
-  const timeline = agreement ? getStatusTimeline(agreement.status, agreement.startDate) : [];
+  const timeline = agreement ? getStatusTimeline(agreement.status, agreement.signed_at || agreement.created_at) : [];
 
-  if (!agreement || !client) {
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (!agreement || error) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-foreground mb-2">Agreement Not Found</h2>
-          <p className="text-muted-foreground mb-4">The requested agreement could not be found.</p>
+          <p className="text-muted-foreground mb-4">
+            {error || 'The requested agreement could not be found.'}
+          </p>
           <Button onClick={() => navigate('/app/broker/agreements')}>
             Back to Agreements
           </Button>
@@ -61,6 +76,7 @@ export function AgreementDetail() {
       </div>
     );
   }
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -86,12 +102,19 @@ export function AgreementDetail() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'ACTIVE':
       case 'Active':
         return 'bg-green-100 text-green-800 border-green-200';
+      case 'PENDING':
+      case 'PROPOSED':
+      case 'DRAFT':
       case 'Pending':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'SIGNED':
+      case 'TERMINATED':
       case 'Completed':
         return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'DEFAULTED':
       case 'Defaulted':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
@@ -160,7 +183,7 @@ export function AgreementDetail() {
     });
   };
 
-  const brokerRevenue = calculateBrokerRevenue(agreement.premium, agreement.apr);
+  const brokerRevenue = (agreement.principal_amount_pennies / 100) * (agreement.broker_fee_bps / 10000);
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -176,14 +199,14 @@ export function AgreementDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Agreement {agreement.id}</h1>
+            <h1 className="text-3xl font-bold text-foreground">Agreement {agreement.id.slice(0, 8)}...</h1>
             <p className="text-muted-foreground mt-2">
-              {agreement.policyType} financing agreement
+              Policy: {agreement.policy_id.slice(0, 8)}... financing agreement
             </p>
           </div>
         </div>
         
-        {agreement.status === 'Pending' && (
+        {(agreement.status === 'PENDING' || agreement.status === 'PROPOSED' || agreement.status === 'DRAFT') && (
           <Button variant="destructive" onClick={handleCancelDraft}>
             <X className="h-4 w-4 mr-2" />
             Cancel Draft
@@ -210,9 +233,9 @@ export function AgreementDetail() {
                   Client Information
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium">{client.name}</p>
-                  <p className="text-sm text-muted-foreground">{client.email}</p>
-                  <p className="text-sm text-muted-foreground">{client.phone}</p>
+                  <p className="font-medium">{client?.name || 'Client not found'}</p>
+                  <p className="text-sm text-muted-foreground">{client?.email || 'N/A'}</p>
+                  <p className="text-sm text-muted-foreground">{client?.phone || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -224,9 +247,9 @@ export function AgreementDetail() {
                   Financing Details
                 </div>
                 <div className="space-y-1">
-                  <p className="text-lg font-semibold">{formatCurrency(agreement.premium)}</p>
+                  <p className="text-lg font-semibold">{formatCurrency(agreement.principal_amount_pennies / 100)}</p>
                   <p className="text-sm text-muted-foreground">Premium Amount</p>
-                  <p className="text-sm font-medium">{agreement.apr}% APR</p>
+                  <p className="text-sm font-medium">{(agreement.apr_bps / 100).toFixed(2)}% APR</p>
                 </div>
               </div>
             </div>
@@ -238,9 +261,15 @@ export function AgreementDetail() {
                   Term Details
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium">{formatDate(agreement.startDate)}</p>
+                  <p className="font-medium">{agreement.signed_at ? formatDate(agreement.signed_at) : 'Not signed'}</p>
                   <p className="text-sm text-muted-foreground">Start Date</p>
-                  <p className="text-sm font-medium">{formatDate(agreement.endDate)}</p>
+                  <p className="text-sm font-medium">
+                    {agreement.signed_at ? formatDate(
+                      new Date(new Date(agreement.signed_at).setMonth(
+                        new Date(agreement.signed_at).getMonth() + agreement.term_months
+                      )).toISOString()
+                    ) : 'N/A'}
+                  </p>
                   <p className="text-sm text-muted-foreground">End Date</p>
                 </div>
               </div>
@@ -255,7 +284,7 @@ export function AgreementDetail() {
                 <div className="space-y-1">
                   <p className="text-lg font-semibold text-primary">{formatCurrency(brokerRevenue)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {((brokerRevenue / agreement.premium) * 100).toFixed(1)}% of premium
+                    {((brokerRevenue / (agreement.principal_amount_pennies / 100)) * 100).toFixed(1)}% of premium
                   </p>
                 </div>
               </div>

@@ -110,6 +110,11 @@ class APIClient {
   async getPolicy(id: string) {
     return this.request<any>(`/api/broker/policies/${id}`);
   }
+
+  // Dashboard
+  async getDashboard() {
+    return this.request<any>('/api/broker/dashboard');
+  }
 }
 
 export const apiClient = new APIClient(API_BASE_URL);

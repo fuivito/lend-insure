@@ -138,9 +138,9 @@ export const getStatusTimeline = (status: string, startDate: string) => {
   const steps = [
     { key: 'draft', label: 'Draft', completed: true },
     { key: 'sent', label: 'Sent', completed: true },
-    { key: 'signed', label: 'Signed', completed: status !== 'Pending' },
-    { key: 'active', label: 'Active', completed: ['Active', 'Completed', 'Defaulted'].includes(status) },
-    { key: 'completed', label: status === 'Defaulted' ? 'Defaulted' : 'Completed', completed: ['Completed', 'Defaulted'].includes(status) }
+    { key: 'signed', label: 'Signed', completed: !['PENDING', 'PROPOSED', 'DRAFT', 'Pending'].includes(status) },
+    { key: 'active', label: 'Active', completed: ['ACTIVE', 'Active', 'COMPLETED', 'Completed', 'DEFAULTED', 'Defaulted'].includes(status) },
+    { key: 'completed', label: ['DEFAULTED', 'Defaulted'].includes(status) ? 'Defaulted' : 'Completed', completed: ['COMPLETED', 'Completed', 'DEFAULTED', 'Defaulted'].includes(status) }
   ];
 
   return steps;

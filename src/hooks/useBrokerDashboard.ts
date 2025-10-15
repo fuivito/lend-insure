@@ -32,8 +32,8 @@ export function useBrokerDashboard(): UseBrokerDashboardResult {
     setError(null);
     
     try {
-      const response = await apiClient.request<any>('/api/broker/dashboard');
-      setStats(response);
+      const response = await apiClient.getDashboard();
+      setStats(response as DashboardStats);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
       console.error('Error fetching dashboard:', err);

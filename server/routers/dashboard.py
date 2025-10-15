@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
 from decimal import Decimal
-from ..database import get_db
-from ..middleware.auth import AuthContext, get_auth_context
-from ..middleware.rbac import require_role
-from .. import models
+from database import get_db
+from middleware.auth import AuthContext, get_auth_context
+from middleware.rbac import require_role
+import models
 
 router = APIRouter(prefix="/api/broker/dashboard", tags=["Broker - Dashboard"])
 
@@ -21,23 +21,21 @@ async def get_dashboard(
     org_filter = {} if is_internal else {"organisation_id": auth.organisation_id}
     
     # Get agreement counts
-    active_count = db.query(models.Agreement).filter_by(
-        **org_filter, status=models.AgreementStatusEnum.ACTIVE
-    ).count()
+    query = db.query(models.Agreement)
+    if not is_internal:
+        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
     
-    defaulted_count = db.query(models.Agreement).filter_by(
-        **org_filter, status=models.AgreementStatusEnum.DEFAULTED
-    ).count()
+    active_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.ACTIVE).count()
     
-    terminated_count = db.query(models.Agreement).filter_by(
-        **org_filter, status=models.AgreementStatusEnum.TERMINATED
-    ).count()
+    defaulted_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.DEFAULTED).count()
+    
+    terminated_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.TERMINATED).count()
     
     # Calculate YTD revenue
     year_start = datetime(datetime.utcnow().year, 1, 1)
     
-    query = db.query(models.Agreement).filter(
-        models.Agreement.start_date >= year_start,
+    revenue_query = db.query(models.Agreement).filter(
+        models.Agreement.created_at >= year_start,
         models.Agreement.status.in_([
             models.AgreementStatusEnum.ACTIVE,
             models.AgreementStatusEnum.SIGNED
@@ -45,9 +43,9 @@ async def get_dashboard(
     )
     
     if not is_internal:
-        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
+        revenue_query = revenue_query.filter(models.Agreement.organisation_id == auth.organisation_id)
     
-    agreements = query.all()
+    agreements = revenue_query.all()
     
     # Note: CommissionLine model doesn't exist in current database
     # For now, calculate revenue as a simple percentage of principal amounts
