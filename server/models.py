@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Numeric, DateTime, ForeignKey, Enum, JSON, Index
+from sqlalchemy import Column, String, Integer, Numeric, DateTime, ForeignKey, Enum, JSON, Index, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -6,7 +6,7 @@ import enum
 import uuid
 
 def generate_uuid():
-    return str(uuid.uuid4())
+    return uuid.uuid4()
 
 class BrokerRoleEnum(str, enum.Enum):
     BROKER = "BROKER"
@@ -47,7 +47,7 @@ class ProposalStatusEnum(str, enum.Enum):
 class Organisation(Base):
     __tablename__ = "organisations"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
     name = Column(String, nullable=False)
     status = Column(Enum(OrganisationStatusEnum), default=OrganisationStatusEnum.ACTIVE)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -63,8 +63,8 @@ class Organisation(Base):
 class BrokerUser(Base):
     __tablename__ = "broker_users"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
     role = Column(Enum(BrokerRoleEnum), nullable=False)
     email = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
@@ -79,8 +79,8 @@ class BrokerUser(Base):
 class Client(Base):
     __tablename__ = "clients"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
@@ -104,15 +104,15 @@ class Client(Base):
 class Policy(Base):
     __tablename__ = "policies"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
-    client_id = Column(String, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    insurer_name = Column(String, nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    insurer = Column(String, nullable=False)  # Changed from insurer_name
     product_type = Column(String, nullable=False)
     policy_number = Column(String, nullable=False)
-    inception_date = Column(DateTime(timezone=True), nullable=False)
-    expiry_date = Column(DateTime(timezone=True), nullable=False)
-    gross_premium = Column(Numeric(10, 2), nullable=False)
+    start_date = Column(DateTime(timezone=True), nullable=False)  # Changed from inception_date
+    end_date = Column(DateTime(timezone=True), nullable=False)  # Changed from expiry_date
+    premium_amount_pennies = Column(Integer, nullable=False)  # Changed from gross_premium
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -128,10 +128,10 @@ class Policy(Base):
 class Agreement(Base):
     __tablename__ = "agreements"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
-    client_id = Column(String, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    policy_id = Column(String, ForeignKey("policies.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    policy_id = Column(UUID(as_uuid=True), ForeignKey("policies.id", ondelete="CASCADE"), nullable=False)
     principal_amount_pennies = Column(Integer, nullable=False)  # Amount in pennies
     apr_bps = Column(Integer, nullable=False)
     term_months = Column(Integer, nullable=False)
@@ -162,15 +162,14 @@ class Agreement(Base):
 class Instalment(Base):
     __tablename__ = "instalments"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
-    sequence = Column(Integer, nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+    sequence_number = Column(Integer, nullable=False)
     due_date = Column(DateTime(timezone=True), nullable=False)
-    amount_due = Column(Numeric(10, 2), nullable=False)
-    amount_paid = Column(Numeric(10, 2), default=0)
+    amount_pennies = Column(Integer, nullable=False)
     status = Column(Enum(InstalmentStatusEnum), default=InstalmentStatusEnum.UPCOMING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     agreement = relationship("Agreement", back_populates="instalments")
     # payments = relationship("Payment", back_populates="instalment")  # Table doesn't exist
@@ -181,9 +180,9 @@ class Instalment(Base):
 # class Payment(Base):
 #     __tablename__ = "payments"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
-#     instalment_id = Column(String, ForeignKey("instalments.id", ondelete="SET NULL"))
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+#     instalment_id = Column(UUID(as_uuid=True), ForeignKey("instalments.id", ondelete="SET NULL"))
 #     amount = Column(Numeric(10, 2), nullable=False)
 #     collected_at = Column(DateTime(timezone=True), server_default=func.now())
 #     method = Column(String, nullable=False)
@@ -200,8 +199,8 @@ class Instalment(Base):
 # class CreditCheck(Base):
 #     __tablename__ = "credit_checks"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
 #     provider = Column(String, nullable=False)
 #     score = Column(Integer)
 #     decision = Column(String, nullable=False)
@@ -216,8 +215,8 @@ class Instalment(Base):
 # class AgreementEvent(Base):
 #     __tablename__ = "agreement_events"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
 #     type = Column(String, nullable=False)
 #     actor_type = Column(String, nullable=False)
 #     meta = Column(JSON)
@@ -231,8 +230,8 @@ class Instalment(Base):
 # class AgreementDocument(Base):
 #     __tablename__ = "agreement_documents"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
 #     kind = Column(String, nullable=False)
 #     storage_key = Column(String, nullable=False)
 #     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -245,8 +244,8 @@ class Instalment(Base):
 # class CommissionLine(Base):
 #     __tablename__ = "commission_lines"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     agreement_id = Column(String, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
 #     type = Column(String, nullable=False)
 #     amount = Column(Numeric(10, 2), nullable=False)
 #     currency = Column(String, default="GBP")
@@ -259,8 +258,8 @@ class Instalment(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
     actor_type = Column(String, nullable=False)
     action = Column(String, nullable=False)
     entity = Column(String, nullable=False)
@@ -279,10 +278,10 @@ class AuditLog(Base):
 # class Proposal(Base):
 #     __tablename__ = "proposals"
 #     
-#     id = Column(String, primary_key=True, default=generate_uuid)
-#     organisation_id = Column(String, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
-#     client_id = Column(String, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-#     broker_id = Column(String, ForeignKey("broker_users.id", ondelete="CASCADE"), nullable=False)
+#     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+#     organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+#     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+#     broker_id = Column(UUID(as_uuid=True), ForeignKey("broker_users.id", ondelete="CASCADE"), nullable=False)
 #     broker_name = Column(String, nullable=False)
 #     broker_email = Column(String, nullable=False)
 #     insurance_type = Column(String, nullable=False)

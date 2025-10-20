@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
+import uuid
 from database import get_db
 from middleware.auth import AuthContext, get_auth_context
 from middleware.rbac import require_role
@@ -77,13 +78,13 @@ async def create_agreement(
     
     # Verify client and policy
     client = db.query(models.Client).filter(
-        models.Client.id == agreement_data.client_id,
-        models.Client.organisation_id == auth.organisation_id
+        models.Client.id == uuid.UUID(agreement_data.client_id),
+        models.Client.organisation_id == uuid.UUID(auth.organisation_id)
     ).first()
     
     policy = db.query(models.Policy).filter(
-        models.Policy.id == agreement_data.policy_id,
-        models.Policy.organisation_id == auth.organisation_id
+        models.Policy.id == uuid.UUID(agreement_data.policy_id),
+        models.Policy.organisation_id == uuid.UUID(auth.organisation_id)
     ).first()
     
     if not client or not policy:
@@ -99,18 +100,21 @@ async def create_agreement(
     signed_at = agreement_data.signed_at or datetime.utcnow()
     activated_at = signed_at + timedelta(days=1)  # Assume activated next day
     
-    # Create agreement
+    # Create agreement with explicit timestamps
+    now = datetime.utcnow()
     agreement = models.Agreement(
-        organisation_id=auth.organisation_id,
-        client_id=agreement_data.client_id,
-        policy_id=agreement_data.policy_id,
+        organisation_id=uuid.UUID(auth.organisation_id),
+        client_id=uuid.UUID(agreement_data.client_id),
+        policy_id=uuid.UUID(agreement_data.policy_id),
         principal_amount_pennies=agreement_data.principal_amount_pennies,
         apr_bps=agreement_data.apr_bps,
         term_months=agreement_data.term_months,
         broker_fee_bps=agreement_data.broker_fee_bps,
         status=models.AgreementStatusEnum.DRAFT,
         signed_at=signed_at,
-        activated_at=activated_at
+        activated_at=activated_at,
+        created_at=now,
+        updated_at=now
     )
     
     db.add(agreement)
@@ -121,10 +125,9 @@ async def create_agreement(
         due_date = signed_at + timedelta(days=i * 30)
         instalment = models.Instalment(
             agreement_id=agreement.id,
-            sequence=i + 1,
+            sequence_number=i + 1,
             due_date=due_date,
-            amount_due=Decimal(str(round(monthly_payment, 2))),
-            amount_paid=Decimal(0),
+            amount_pennies=int(round(monthly_payment * 100)),  # Convert to pennies
             status=models.InstalmentStatusEnum.UPCOMING
         )
         db.add(instalment)
@@ -133,11 +136,11 @@ async def create_agreement(
     
     # Audit log
     audit_log = models.AuditLog(
-        organisation_id=auth.organisation_id,
+        organisation_id=uuid.UUID(auth.organisation_id),
         actor_type=auth.role,
         action="CREATE",
         entity="AGREEMENT",
-        after={"id": agreement.id}
+        after={"id": str(agreement.id)}
     )
     db.add(audit_log)
     

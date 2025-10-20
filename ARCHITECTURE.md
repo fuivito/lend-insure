@@ -232,3 +232,48 @@ src/
 - No global state management (Redux/Zustand) - kept simple
 
 The architecture follows a clean separation of concerns with the frontend hooks acting as a data layer abstraction over the API clients, making it easy to manage state and handle loading/error states consistently across the application.
+
+## 🧠 **Development Notes & Patterns**
+
+### **UUID Field Validators**
+**CRITICAL**: When creating `@field_validator` for UUID fields, always convert UUID objects to strings.
+
+**Pattern:**
+```python
+@field_validator('id', 'organisation_id', mode='before')
+@classmethod
+def convert_uuid_to_str(cls, v):
+    if isinstance(v, uuid.UUID):
+        return str(v)
+    return v
+```
+
+**Key Points:**
+- Use `mode='before'` to run before Pydantic validation
+- Always check `isinstance(v, uuid.UUID)` before conversion
+- Return original value if not a UUID
+- UUIDs are stored as Python objects in the database but need to be strings for API responses
+- Include `json_encoders = {uuid.UUID: str}` in Config class
+
+**Fields that typically need UUID validation:**
+- `id` (primary keys)
+- `organisation_id`
+- `client_id`
+- `policy_id`
+- `agreement_id`
+- `broker_id`
+
+### **Schema Configuration Pattern**
+Every response schema with UUID fields should include:
+```python
+class Config:
+    from_attributes = True
+    json_encoders = {
+        uuid.UUID: str
+    }
+```
+
+### **Database UUID Generation**
+- Use `generate_uuid()` function from `models.py` for default values
+- Database stores UUIDs as strings in String columns
+- Supabase migrations use `UUID` type with `gen_random_uuid()`

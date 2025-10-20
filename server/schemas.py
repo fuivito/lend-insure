@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List, Any
 from datetime import datetime
 from decimal import Decimal
+import uuid
 from models import BrokerRoleEnum, AgreementStatusEnum, InstalmentStatusEnum, PaymentStatusEnum, OrganisationStatusEnum, ProposalStatusEnum
 
 # Client schemas
@@ -14,6 +15,17 @@ class ClientCreate(BaseModel):
     address_line2: Optional[str] = None
     city: Optional[str] = None
     postcode: Optional[str] = None
+
+class ClientUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    postcode: Optional[str] = None
+
 
 class ClientResponse(BaseModel):
     id: str
@@ -29,33 +41,53 @@ class ClientResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     
+    @field_validator('id', 'organisation_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
+        json_encoders = {
+            uuid.UUID: str
+        }
 
 # Policy schemas
 class PolicyCreate(BaseModel):
     client_id: str
-    insurer_name: str
+    insurer: str  # Changed from insurer_name
     product_type: str
     policy_number: str
-    inception_date: datetime
-    expiry_date: datetime
-    gross_premium: Decimal
+    start_date: datetime  # Changed from inception_date
+    end_date: datetime  # Changed from expiry_date
+    premium_amount_pennies: int  # Changed from gross_premium
 
 class PolicyResponse(BaseModel):
     id: str
     organisation_id: str
     client_id: str
-    insurer_name: str
+    insurer: str  # Changed from insurer_name
     product_type: str
     policy_number: str
-    inception_date: datetime
-    expiry_date: datetime
-    gross_premium: Decimal
+    start_date: datetime  # Changed from inception_date
+    end_date: datetime  # Changed from expiry_date
+    premium_amount_pennies: int  # Changed from gross_premium
     created_at: datetime
+    
+    @field_validator('id', 'organisation_id', 'client_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            uuid.UUID: str
+        }
 
 # Agreement schemas
 class AgreementCreate(BaseModel):
@@ -82,8 +114,18 @@ class AgreementResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     
+    @field_validator('id', 'organisation_id', 'client_id', 'policy_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
+        json_encoders = {
+            uuid.UUID: str
+        }
 
 # Instalment schemas
 class InstalmentResponse(BaseModel):
@@ -95,8 +137,18 @@ class InstalmentResponse(BaseModel):
     amount_paid: Decimal
     status: InstalmentStatusEnum
     
+    @field_validator('id', 'agreement_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
+        json_encoders = {
+            uuid.UUID: str
+        }
 
 # Dashboard schemas
 class DashboardResponse(BaseModel):
@@ -122,8 +174,18 @@ class ProposalResponse(BaseModel):
     terms: Any
     custom_schedule: Optional[Any] = None
     
+    @field_validator('id', 'broker_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
+        json_encoders = {
+            uuid.UUID: str
+        }
 
 # Pagination
 class PaginationMeta(BaseModel):

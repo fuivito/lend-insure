@@ -66,12 +66,12 @@ def seed_database():
         policy = Policy(
             organisation_id=org.id,
             client_id=client.id,
-            insurer_name="Aviva",
+            insurer="Aviva",  # Changed from insurer_name
             product_type="Motor",
             policy_number="POL-2024-001",
-            inception_date=datetime(2024, 1, 1),
-            expiry_date=datetime(2024, 12, 31),
-            gross_premium=Decimal("1200.00")
+            start_date=datetime(2024, 1, 1),  # Changed from inception_date
+            end_date=datetime(2024, 12, 31),  # Changed from expiry_date
+            premium_amount_pennies=120000  # Changed from gross_premium (1200.00 * 100)
         )
         db.add(policy)
         db.flush()

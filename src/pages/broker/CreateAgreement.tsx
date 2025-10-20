@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockBrokerClients, type BrokerClient } from '@/lib/demo/brokerClients';
+import { useClients } from '@/hooks/useClients';
 import { useToast } from '@/hooks/use-toast';
+import { apiClient } from '@/lib/api/client';
 import { 
   ArrowLeft, 
   Search, 
@@ -30,11 +31,21 @@ import {
   Check
 } from 'lucide-react';
 
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
 interface AgreementData {
-  client: BrokerClient | null;
+  client: Client | null;
   premium: number;
   duration: number;
   apr: number;
+  policyId?: string;
 }
 
 const initialData: AgreementData = {
@@ -56,19 +67,25 @@ export function CreateAgreement() {
   const [currentStep, setCurrentStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [agreementData, setAgreementData] = useState<AgreementData>(initialData);
+  const [isCreatingAgreement, setIsCreatingAgreement] = useState(false);
+
+  // Use real API data instead of mock data
+  const { clients, isLoading: isLoadingClients, error: clientsError, refetch } = useClients(searchQuery, 1, 100);
 
   // Pre-select client if coming from client detail page
   const preSelectedClientId = searchParams.get('clientId');
   const preSelectedClient = preSelectedClientId ? 
-    mockBrokerClients.find(c => c.id === preSelectedClientId) : null;
+    clients.find(c => c.id === preSelectedClientId) : null;
   
   // Initialize with pre-selected client if available
-  if (preSelectedClient && !agreementData.client) {
-    setAgreementData(prev => ({ ...prev, client: preSelectedClient }));
-  }
+  useEffect(() => {
+    if (preSelectedClient && !agreementData.client) {
+      setAgreementData(prev => ({ ...prev, client: preSelectedClient }));
+    }
+  }, [preSelectedClient, agreementData.client]);
 
-  const filteredClients = mockBrokerClients.filter(client =>
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredClients = clients.filter(client =>
+    `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -92,7 +109,7 @@ export function CreateAgreement() {
     }).format(amount);
   };
 
-  const handleSelectClient = (client: BrokerClient) => {
+  const handleSelectClient = (client: Client) => {
     setAgreementData(prev => ({ ...prev, client }));
   };
 
@@ -108,21 +125,156 @@ export function CreateAgreement() {
     }
   };
 
-  const handleSendToClient = () => {
-    console.log('Sending agreement to client:', {
-      client: agreementData.client,
-      premium: agreementData.premium,
-      duration: agreementData.duration,
-      apr: agreementData.apr,
-      revenue: calculateRevenue()
-    });
+  const handleSendToClient = async () => {
+    if (!agreementData.client) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a client",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate required fields
+    if (agreementData.premium <= 0) {
+      toast({
+        title: "Invalid Premium",
+        description: "Premium amount must be greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (agreementData.duration <= 0) {
+      toast({
+        title: "Invalid Duration",
+        description: "Duration must be greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCreatingAgreement(true);
     
-    toast({
-      title: "Agreement sent successfully!",
-      description: `Agreement sent to ${agreementData.client?.name}`,
-    });
+    let agreementPayload: any = null;
     
-    navigate('/app/broker/agreements');
+    try {
+      // Test API connectivity first
+      console.log('Testing API connectivity...');
+      try {
+        const testResponse = await apiClient.getClients({ limit: 1 });
+        console.log('API connectivity test passed:', testResponse);
+        console.log('API test response type:', typeof testResponse);
+        console.log('API test response keys:', testResponse ? Object.keys(testResponse) : 'null/undefined');
+      } catch (apiError) {
+        console.error('API connectivity test failed:', apiError);
+        console.error('API error details:', {
+          message: apiError instanceof Error ? apiError.message : 'Unknown error',
+          stack: apiError instanceof Error ? apiError.stack : undefined,
+          response: (apiError as any)?.response || undefined
+        });
+        
+        // Check if it's a network error (server not running)
+        if (apiError instanceof Error && (
+          apiError.message.includes('fetch') || 
+          apiError.message.includes('network') ||
+          apiError.message.includes('Failed to fetch') ||
+          apiError.message.includes('ERR_CONNECTION_REFUSED')
+        )) {
+          throw new Error('Backend server is not running. Please start the server with: cd server && python main.py');
+        }
+        
+        throw new Error(`API server not accessible: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`);
+      }
+
+      let policyId = agreementData.policyId;
+      
+      // For demo purposes, create a default policy if none exists
+      if (!policyId) {
+        console.log('Creating policy for client:', agreementData.client.id);
+        const policyData = {
+          client_id: agreementData.client.id,
+          insurer: "Demo Insurance Co",
+          product_type: "General Insurance",
+          policy_number: `POL-${Date.now()}`,
+          start_date: new Date(),
+          end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+          premium_amount_pennies: Math.round(agreementData.premium * 100)
+        };
+        
+        console.log('Policy data:', policyData);
+        try {
+          console.log('Sending policy creation request...');
+          const policy = await apiClient.createPolicy(policyData);
+          console.log('Policy creation response:', policy);
+          console.log('Policy type:', typeof policy);
+          console.log('Policy keys:', policy ? Object.keys(policy) : 'null/undefined');
+          
+          if (!policy) {
+            throw new Error('Policy creation returned null/undefined');
+          }
+          
+          if (!policy.id) {
+            console.error('Policy object missing id field:', policy);
+            throw new Error(`Policy creation failed - missing id field. Response: ${JSON.stringify(policy)}`);
+          }
+          
+          policyId = policy.id;
+          console.log('Policy ID set to:', policyId);
+        } catch (policyError) {
+          console.error('Policy creation error:', policyError);
+          console.error('Policy error type:', typeof policyError);
+          console.error('Policy error details:', {
+            message: policyError instanceof Error ? policyError.message : 'Unknown error',
+            stack: policyError instanceof Error ? policyError.stack : undefined,
+            response: (policyError as any)?.response || undefined
+          });
+          throw new Error(`Failed to create policy: ${policyError instanceof Error ? policyError.message : 'Unknown error'}`);
+        }
+      }
+
+      // Validate policy ID
+      if (!policyId) {
+        throw new Error('Failed to create or retrieve policy ID');
+      }
+
+      // Create agreement via API
+      agreementPayload = {
+        client_id: agreementData.client.id,
+        policy_id: policyId,
+        principal_amount_pennies: Math.round(agreementData.premium * 100), // Convert to pennies
+        apr_bps: Math.round(agreementData.apr * 100), // Convert to basis points
+        term_months: agreementData.duration,
+        broker_fee_bps: Math.round(BASE_COMMISSION_RATE * 10000), // Convert to basis points
+        signed_at: new Date()
+      };
+
+      console.log('Creating agreement with payload:', agreementPayload);
+      await apiClient.createAgreement(agreementPayload);
+      
+      toast({
+        title: "Agreement created successfully!",
+        description: `Agreement created for ${agreementData.client.first_name} ${agreementData.client.last_name}`,
+      });
+      
+      navigate('/app/broker/agreements');
+    } catch (error) {
+      console.error('Error creating agreement:', error);
+      console.error('Agreement payload:', agreementPayload);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        response: (error as any)?.response?.data || undefined
+      });
+      
+      toast({
+        title: "Error creating agreement",
+        description: error instanceof Error ? error.message : "Failed to create agreement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreatingAgreement(false);
+    }
   };
 
   const revenue = calculateRevenue();
@@ -220,7 +372,23 @@ export function CreateAgreement() {
 
               {/* Client List */}
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {filteredClients.map((client) => (
+                {isLoadingClients ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading clients...
+                  </div>
+                ) : clientsError ? (
+                  <div className="text-center py-8 text-destructive">
+                    Error loading clients: {clientsError}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={refetch}
+                      className="mt-2"
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : filteredClients.map((client) => (
                   <div
                     key={client.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -232,17 +400,17 @@ export function CreateAgreement() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium">{client.name}</h4>
+                        <h4 className="font-medium">{client.first_name} {client.last_name}</h4>
                         <p className="text-sm text-muted-foreground">{client.email}</p>
                         <p className="text-sm text-muted-foreground">{client.phone}</p>
                       </div>
-                      <Badge variant="secondary">{client.agreementCount} agreements</Badge>
+                      <Badge variant="secondary">Client</Badge>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {filteredClients.length === 0 && (
+              {!isLoadingClients && !clientsError && filteredClients.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No clients found matching your search.
                 </div>
@@ -387,7 +555,7 @@ export function CreateAgreement() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <p className="text-sm text-muted-foreground">Client</p>
-                      <p className="font-medium">{agreementData.client?.name}</p>
+                      <p className="font-medium">{agreementData.client?.first_name} {agreementData.client?.last_name}</p>
                       <p className="text-sm text-muted-foreground">{agreementData.client?.email}</p>
                     </div>
                     <div>
@@ -472,8 +640,8 @@ export function CreateAgreement() {
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button onClick={handleSendToClient}>
-              Send to Client
+            <Button onClick={handleSendToClient} disabled={isCreatingAgreement}>
+              {isCreatingAgreement ? 'Creating Agreement...' : 'Send to Client'}
             </Button>
           )}
         </div>

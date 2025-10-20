@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { apiClient } from '@/lib/api/client';
-import { ArrowLeft, Plus, Mail, Phone, MapPin, Calendar, Loader2 } from 'lucide-react';
+import { EditClientForm } from '@/components/broker/EditClientForm';
+import { ArrowLeft, Plus, Mail, Phone, MapPin, Calendar, Loader2, Edit, Save, X } from 'lucide-react';
 
 interface Client {
   id: string;
@@ -48,6 +49,9 @@ export function ClientDetail() {
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -141,6 +145,38 @@ export function ClientDetail() {
     navigate(`/app/broker/agreements/new?clientId=${id}`);
   };
 
+  const handleAgreementClick = (agreementId: string) => {
+    navigate(`/app/broker/agreements/${agreementId}`);
+  };
+
+  const handleEditClick = () => {
+    setIsEditing(true);
+    setSaveError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setSaveError(null);
+  };
+
+  const handleSaveClient = async (data: Partial<Client>) => {
+    if (!client) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const updatedClient = await apiClient.updateClient(client.id, data);
+      setClient(updatedClient);
+      setIsEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update client');
+      console.error('Error updating client:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Page Header */}
@@ -161,63 +197,89 @@ export function ClientDetail() {
             View client details and manage agreements
           </p>
         </div>
-        <Button onClick={handleCreateProposal}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create new financing proposal
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleEditClick}
+            disabled={isEditing}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Client
+          </Button>
+          <Button onClick={handleCreateProposal}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create new financing proposal
+          </Button>
+        </div>
       </div>
 
+      {/* Save Error Alert */}
+      {saveError && (
+        <Alert variant="destructive">
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Client Information Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Mail className="h-4 w-4" />
-                Email
+      {isEditing ? (
+        <EditClientForm
+          client={client}
+          onSave={handleSaveClient}
+          onCancel={handleCancelEdit}
+          isLoading={isSaving}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Client Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  Email
+                </div>
+                <p className="text-foreground">{client.email}</p>
               </div>
-              <p className="text-foreground">{client.email}</p>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Phone className="h-4 w-4" />
-                Phone
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                  Phone
+                </div>
+                <p className="text-foreground">{client.phone || 'No phone provided'}</p>
               </div>
-              <p className="text-foreground">{client.phone}</p>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                Created
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  Created
+                </div>
+                <p className="text-foreground">{formatDate(client.created_at)}</p>
               </div>
-              <p className="text-foreground">{formatDate(client.created_at)}</p>
-            </div>
 
-            <div className="space-y-2 md:col-span-2 lg:col-span-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                Address
+              <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  Address
+                </div>
+                <p className="text-foreground">
+                  {client.address_line1 && (
+                    <>
+                      {client.address_line1}
+                      {client.address_line2 && `, ${client.address_line2}`}
+                      {client.city && `, ${client.city}`}
+                      {client.postcode && `, ${client.postcode}`}
+                    </>
+                  )}
+                  {!client.address_line1 && 'No address provided'}
+                </p>
               </div>
-              <p className="text-foreground">
-                {client.address_line1 && (
-                  <>
-                    {client.address_line1}
-                    {client.address_line2 && `, ${client.address_line2}`}
-                    {client.city && `, ${client.city}`}
-                    {client.postcode && `, ${client.postcode}`}
-                  </>
-                )}
-                {!client.address_line1 && 'No address provided'}
-              </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Agreements Section */}
       <Card>
@@ -248,7 +310,11 @@ export function ClientDetail() {
                 </TableHeader>
                 <TableBody>
                   {agreements.map((agreement) => (
-                    <TableRow key={agreement.id} className="hover:bg-muted/50">
+                    <TableRow 
+                      key={agreement.id} 
+                      className="hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleAgreementClick(agreement.id)}
+                    >
                       <TableCell className="font-medium">{agreement.id}</TableCell>
                       <TableCell>{agreement.policy_id}</TableCell>
                       <TableCell>{formatCurrency(agreement.principal_amount_pennies / 100)}</TableCell>
