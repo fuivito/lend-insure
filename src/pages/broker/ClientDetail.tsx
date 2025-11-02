@@ -142,7 +142,7 @@ export function ClientDetail() {
   };
 
   const handleCreateProposal = () => {
-    navigate(`/app/broker/agreements/new?clientId=${id}`);
+    navigate(`/app/broker/deal-builder?clientId=${id}`);
   };
 
   const handleAgreementClick = (agreementId: string) => {

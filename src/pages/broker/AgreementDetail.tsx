@@ -1,11 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useAgreement } from '@/hooks/useAgreement';
-import { mockBrokerClients } from '@/lib/demo/brokerClients';
+import { apiClient } from '@/lib/api/client';
 import { 
   mockAgreementDocuments, 
   mockAgreementActivity, 
@@ -31,6 +32,15 @@ import {
   Loader2
 } from 'lucide-react';
 
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
 export function AgreementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -39,8 +49,32 @@ export function AgreementDetail() {
   // Fetch agreement from API
   const { agreement, isLoading, error } = useAgreement(id);
   
-  // Find the client (using mock data for now)
-  const client = agreement ? mockBrokerClients.find(c => c.id === agreement.client_id) : null;
+  // Fetch client from API
+  const [client, setClient] = useState<Client | null>(null);
+  const [isLoadingClient, setIsLoadingClient] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchClient = async () => {
+      if (!agreement?.client_id) return;
+      
+      setIsLoadingClient(true);
+      setClientError(null);
+      
+      try {
+        const clientData = await apiClient.getClient(agreement.client_id);
+        setClient(clientData);
+      } catch (err) {``
+        setClientError(err instanceof Error ? err.message : 'Failed to fetch client');
+        console.error('Error fetching client:', err);
+      } finally {
+        setIsLoadingClient(false);
+      }
+    };
+
+    fetchClient();
+  }, [agreement?.client_id]);
   
   // Get documents and activity (using mock data for now)
   const documents = id ? mockAgreementDocuments[id] || [] : [];
@@ -50,7 +84,7 @@ export function AgreementDetail() {
   const timeline = agreement ? getStatusTimeline(agreement.status, agreement.signed_at || agreement.created_at) : [];
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || isLoadingClient) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
@@ -164,13 +198,30 @@ export function AgreementDetail() {
     console.log('Viewing document:', doc);
   };
 
-  const handleCancelDraft = () => {
-    toast({
-      title: "Agreement cancelled",
-      description: "The draft agreement has been cancelled",
-    });
-    console.log('Cancelling agreement:', agreement.id);
-    navigate('/app/broker/agreements');
+  const handleCancelDraft = async () => {
+    if (!agreement || !id) return;
+
+    setIsDeleting(true);
+    
+    try {
+      await apiClient.deleteAgreement(id);
+      
+      toast({
+        title: "Agreement cancelled",
+        description: "The draft agreement has been cancelled and deleted",
+      });
+      
+      navigate('/app/broker/agreements');
+    } catch (error) {
+      console.error('Error deleting agreement:', error);
+      toast({
+        title: "Error cancelling agreement",
+        description: error instanceof Error ? error.message : "Failed to cancel agreement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -206,10 +257,23 @@ export function AgreementDetail() {
           </div>
         </div>
         
-        {(agreement.status === 'PENDING' || agreement.status === 'PROPOSED' || agreement.status === 'DRAFT') && (
-          <Button variant="destructive" onClick={handleCancelDraft}>
-            <X className="h-4 w-4 mr-2" />
-            Cancel Draft
+        {(agreement.status === 'PROPOSED' || agreement.status === 'DRAFT') && (
+          <Button 
+            variant="destructive" 
+            onClick={handleCancelDraft}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4 mr-2" />
+                Cancel Draft
+              </>
+            )}
           </Button>
         )}
       </div>
@@ -233,7 +297,13 @@ export function AgreementDetail() {
                   Client Information
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium">{client?.name || 'Client not found'}</p>
+                  <p className="font-medium">
+                    {client 
+                      ? `${client.first_name} ${client.last_name}` 
+                      : clientError 
+                        ? 'Client not found' 
+                        : 'Loading...'}
+                  </p>
                   <p className="text-sm text-muted-foreground">{client?.email || 'N/A'}</p>
                   <p className="text-sm text-muted-foreground">{client?.phone || 'N/A'}</p>
                 </div>

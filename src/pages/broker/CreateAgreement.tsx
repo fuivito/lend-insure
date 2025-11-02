@@ -15,8 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useClients } from '@/hooks/useClients';
-import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api/client';
+import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, 
   Search, 
@@ -45,7 +45,6 @@ interface AgreementData {
   premium: number;
   duration: number;
   apr: number;
-  policyId?: string;
 }
 
 const initialData: AgreementData = {
@@ -69,25 +68,58 @@ export function CreateAgreement() {
   const [agreementData, setAgreementData] = useState<AgreementData>(initialData);
   const [isCreatingAgreement, setIsCreatingAgreement] = useState(false);
 
-  // Use real API data instead of mock data
-  const { clients, isLoading: isLoadingClients, error: clientsError, refetch } = useClients(searchQuery, 1, 100);
-
   // Pre-select client if coming from client detail page
   const preSelectedClientId = searchParams.get('clientId');
-  const preSelectedClient = preSelectedClientId ? 
-    clients.find(c => c.id === preSelectedClientId) : null;
   
-  // Initialize with pre-selected client if available
+  // Use real API data instead of mock data
+  const { clients, isLoading: isLoadingClients, error: clientsError, refetch } = useClients(searchQuery, 1, 100);
+  
+  // Fetch the specific client if clientId is provided
+  const [preSelectedClient, setPreSelectedClient] = useState<Client | null>(null);
+  const [isLoadingPreSelectedClient, setIsLoadingPreSelectedClient] = useState(false);
+  
+  // Fetch pre-selected client directly from API if clientId is provided
   useEffect(() => {
-    if (preSelectedClient && !agreementData.client) {
-      setAgreementData(prev => ({ ...prev, client: preSelectedClient }));
+    if (preSelectedClientId && !preSelectedClient) {
+      setIsLoadingPreSelectedClient(true);
+      apiClient.getClient(preSelectedClientId)
+        .then(client => {
+          setPreSelectedClient(client);
+          setAgreementData(prev => ({ ...prev, client }));
+        })
+        .catch(err => {
+          console.error('Error fetching pre-selected client:', err);
+        })
+        .finally(() => {
+          setIsLoadingPreSelectedClient(false);
+        });
     }
-  }, [preSelectedClient, agreementData.client]);
+  }, [preSelectedClientId, preSelectedClient]);
+  
+  // Fallback: Use client from clients list if available and not already set
+  useEffect(() => {
+    if (preSelectedClientId && !preSelectedClient && clients.length > 0) {
+      const clientFromList = clients.find(c => c.id === preSelectedClientId);
+      if (clientFromList && !agreementData.client) {
+        setPreSelectedClient(clientFromList);
+        setAgreementData(prev => ({ ...prev, client: clientFromList }));
+      }
+    }
+  }, [preSelectedClientId, clients, preSelectedClient, agreementData.client]);
 
   const filteredClients = clients.filter(client =>
     `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Sort clients to put pre-selected client at the top
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    if (preSelectedClientId) {
+      if (a.id === preSelectedClientId) return -1;
+      if (b.id === preSelectedClientId) return 1;
+    }
+    return 0;
+  });
 
   const calculateRevenue = () => {
     const baseCommission = agreementData.premium * BASE_COMMISSION_RATE;
@@ -156,100 +188,37 @@ export function CreateAgreement() {
 
     setIsCreatingAgreement(true);
     
-    let agreementPayload: any = null;
-    
     try {
-      // Test API connectivity first
-      console.log('Testing API connectivity...');
-      try {
-        const testResponse = await apiClient.getClients({ limit: 1 });
-        console.log('API connectivity test passed:', testResponse);
-        console.log('API test response type:', typeof testResponse);
-        console.log('API test response keys:', testResponse ? Object.keys(testResponse) : 'null/undefined');
-      } catch (apiError) {
-        console.error('API connectivity test failed:', apiError);
-        console.error('API error details:', {
-          message: apiError instanceof Error ? apiError.message : 'Unknown error',
-          stack: apiError instanceof Error ? apiError.stack : undefined,
-          response: (apiError as any)?.response || undefined
-        });
-        
-        // Check if it's a network error (server not running)
-        if (apiError instanceof Error && (
-          apiError.message.includes('fetch') || 
-          apiError.message.includes('network') ||
-          apiError.message.includes('Failed to fetch') ||
-          apiError.message.includes('ERR_CONNECTION_REFUSED')
-        )) {
-          throw new Error('Backend server is not running. Please start the server with: cd server && python main.py');
-        }
-        
-        throw new Error(`API server not accessible: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`);
-      }
-
-      let policyId = agreementData.policyId;
-      
-      // For demo purposes, create a default policy if none exists
-      if (!policyId) {
-        console.log('Creating policy for client:', agreementData.client.id);
-        const policyData = {
-          client_id: agreementData.client.id,
-          insurer: "Demo Insurance Co",
-          product_type: "General Insurance",
-          policy_number: `POL-${Date.now()}`,
-          start_date: new Date(),
-          end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
-          premium_amount_pennies: Math.round(agreementData.premium * 100)
-        };
-        
-        console.log('Policy data:', policyData);
-        try {
-          console.log('Sending policy creation request...');
-          const policy = await apiClient.createPolicy(policyData);
-          console.log('Policy creation response:', policy);
-          console.log('Policy type:', typeof policy);
-          console.log('Policy keys:', policy ? Object.keys(policy) : 'null/undefined');
-          
-          if (!policy) {
-            throw new Error('Policy creation returned null/undefined');
-          }
-          
-          if (!policy.id) {
-            console.error('Policy object missing id field:', policy);
-            throw new Error(`Policy creation failed - missing id field. Response: ${JSON.stringify(policy)}`);
-          }
-          
-          policyId = policy.id;
-          console.log('Policy ID set to:', policyId);
-        } catch (policyError) {
-          console.error('Policy creation error:', policyError);
-          console.error('Policy error type:', typeof policyError);
-          console.error('Policy error details:', {
-            message: policyError instanceof Error ? policyError.message : 'Unknown error',
-            stack: policyError instanceof Error ? policyError.stack : undefined,
-            response: (policyError as any)?.response || undefined
-          });
-          throw new Error(`Failed to create policy: ${policyError instanceof Error ? policyError.message : 'Unknown error'}`);
-        }
-      }
-
-      // Validate policy ID
-      if (!policyId) {
-        throw new Error('Failed to create or retrieve policy ID');
-      }
-
-      // Create agreement via API
-      agreementPayload = {
+      // Step 1: Create a policy for this client
+      const policyData = {
         client_id: agreementData.client.id,
-        policy_id: policyId,
+        insurer: "Demo Insurance Co", // You may want to make this configurable
+        product_type: "General Insurance",
+        policy_number: `POL-${Date.now()}`, // Generate unique policy number
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
+        premium_amount_pennies: Math.round(agreementData.premium * 100) // Convert to pennies
+      };
+
+      console.log('Creating policy:', policyData);
+      const policy = await apiClient.createPolicy(policyData);
+      
+      if (!policy || !policy.id) {
+        throw new Error('Failed to create policy');
+      }
+
+      // Step 2: Create the agreement using the policy_id
+      const agreementPayload = {
+        client_id: agreementData.client.id,
+        policy_id: policy.id,
         principal_amount_pennies: Math.round(agreementData.premium * 100), // Convert to pennies
         apr_bps: Math.round(agreementData.apr * 100), // Convert to basis points
         term_months: agreementData.duration,
         broker_fee_bps: Math.round(BASE_COMMISSION_RATE * 10000), // Convert to basis points
-        signed_at: new Date()
+        signed_at: new Date().toISOString()
       };
 
-      console.log('Creating agreement with payload:', agreementPayload);
+      console.log('Creating agreement:', agreementPayload);
       await apiClient.createAgreement(agreementPayload);
       
       toast({
@@ -260,13 +229,6 @@ export function CreateAgreement() {
       navigate('/app/broker/agreements');
     } catch (error) {
       console.error('Error creating agreement:', error);
-      console.error('Agreement payload:', agreementPayload);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        response: (error as any)?.response?.data || undefined
-      });
-      
       toast({
         title: "Error creating agreement",
         description: error instanceof Error ? error.message : "Failed to create agreement",
@@ -388,7 +350,7 @@ export function CreateAgreement() {
                       Retry
                     </Button>
                   </div>
-                ) : filteredClients.map((client) => (
+                ) : sortedClients.map((client) => (
                   <div
                     key={client.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -402,15 +364,14 @@ export function CreateAgreement() {
                       <div>
                         <h4 className="font-medium">{client.first_name} {client.last_name}</h4>
                         <p className="text-sm text-muted-foreground">{client.email}</p>
-                        <p className="text-sm text-muted-foreground">{client.phone}</p>
+                        <p className="text-sm text-muted-foreground">{client.phone || 'No phone provided'}</p>
                       </div>
-                      <Badge variant="secondary">Client</Badge>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {!isLoadingClients && !clientsError && filteredClients.length === 0 && (
+              {!isLoadingClients && !clientsError && sortedClients.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No clients found matching your search.
                 </div>
@@ -555,7 +516,7 @@ export function CreateAgreement() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <p className="text-sm text-muted-foreground">Client</p>
-                      <p className="font-medium">{agreementData.client?.first_name} {agreementData.client?.last_name}</p>
+                      <p className="font-medium">{agreementData.client ? `${agreementData.client.first_name} ${agreementData.client.last_name}` : ''}</p>
                       <p className="text-sm text-muted-foreground">{agreementData.client?.email}</p>
                     </div>
                     <div>

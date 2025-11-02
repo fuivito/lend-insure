@@ -127,6 +127,12 @@ class APIClient {
     });
   }
 
+  async deleteAgreement(id: string) {
+    return this.request<any>(`/api/broker/agreements/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Policies
   async createPolicy(data: any) {
     return this.request<any>('/api/broker/policies', {
