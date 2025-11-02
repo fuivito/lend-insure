@@ -13,17 +13,32 @@ import {
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useClients } from '@/hooks/useClients';
-import { Search, Plus, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { Search, Plus, Loader2, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 6;
 
 export function ClientsList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
-  const { clients, isLoading, error, totalPages } = useClients(searchQuery, currentPage, ITEMS_PER_PAGE);
+  const { clients, isLoading, error, totalPages, refetch } = useClients(searchQuery, currentPage, ITEMS_PER_PAGE);
 
   const handleClientClick = (clientId: string) => {
     navigate(`/app/broker/clients/${clientId}`);
@@ -31,6 +46,31 @@ export function ClientsList() {
 
   const handleAddClient = () => {
     navigate('/app/broker/clients/new');
+  };
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    try {
+      setDeletingClientId(clientId);
+      await apiClient.deleteClient(clientId);
+      
+      toast({
+        title: "Client deleted",
+        description: `${clientName} has been successfully deleted.`,
+      });
+      
+      // Refresh the clients list
+      refetch();
+    } catch (error: any) {
+      console.error('Error deleting client:', error);
+      
+      toast({
+        title: "Error deleting client",
+        description: error.message || "Failed to delete client. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingClientId(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -94,12 +134,13 @@ export function ClientsList() {
                     <TableHead>Email</TableHead>
                     <TableHead className="hidden sm:table-cell">Phone</TableHead>
                     <TableHead className="hidden md:table-cell">Last Activity</TableHead>
+                    <TableHead className="w-20">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         No clients found matching your search.
                       </TableCell>
                     </TableRow>
@@ -107,18 +148,68 @@ export function ClientsList() {
                     clients.map((client) => (
                       <TableRow 
                         key={client.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleClientClick(client.id)}
+                        className="hover:bg-muted/50"
                       >
-                        <TableCell className="font-medium">
+                        <TableCell 
+                          className="font-medium cursor-pointer"
+                          onClick={() => handleClientClick(client.id)}
+                        >
                           {client.first_name} {client.last_name}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{client.email}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">
+                        <TableCell 
+                          className="text-muted-foreground cursor-pointer"
+                          onClick={() => handleClientClick(client.id)}
+                        >
+                          {client.email}
+                        </TableCell>
+                        <TableCell 
+                          className="hidden sm:table-cell text-muted-foreground cursor-pointer"
+                          onClick={() => handleClientClick(client.id)}
+                        >
                           {client.phone || 'N/A'}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground">
+                        <TableCell 
+                          className="hidden md:table-cell text-muted-foreground cursor-pointer"
+                          onClick={() => handleClientClick(client.id)}
+                        >
                           {formatDate(client.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={deletingClientId === client.id}
+                              >
+                                {deletingClientId === client.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete <strong>{client.first_name} {client.last_name}</strong>? 
+                                  This action cannot be undone. If this client has any active agreements, 
+                                  you'll need to delete those first.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteClient(client.id, `${client.first_name} ${client.last_name}`)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete Client
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </TableCell>
                       </TableRow>
                     ))

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,11 +21,21 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAgreements } from '@/hooks/useAgreements';
+import { apiClient } from '@/lib/api/client';
 import { Search, Filter, Loader2 } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 8;
 
 type StatusFilter = 'all' | 'ACTIVE' | 'PROPOSED' | 'SIGNED' | 'TERMINATED' | 'DEFAULTED' | 'DRAFT';
+
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
 
 export function AgreementsList() {
   const navigate = useNavigate();
@@ -39,6 +49,64 @@ export function AgreementsList() {
     currentPage,
     ITEMS_PER_PAGE
   );
+
+  // Fetch clients using the same pattern as AgreementDetail
+  const [clientsMap, setClientsMap] = useState<Map<string, { first_name: string; last_name: string }>>(new Map());
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (!agreements || agreements.length === 0) {
+        setClientsMap(new Map());
+        return;
+      }
+      
+      // Get unique client IDs from current agreements
+      const uniqueClientIds = Array.from(new Set(
+        agreements
+          .map(agreement => agreement.client_id)
+          .filter(Boolean) // Remove null/undefined
+      ));
+      
+      if (uniqueClientIds.length === 0) {
+        setClientsMap(new Map());
+        return;
+      }
+      
+      setIsLoadingClients(true);
+      
+      try {
+        // Fetch all unique clients in parallel for optimal performance
+        const clientPromises = uniqueClientIds.map(clientId => 
+          apiClient.getClient(clientId).catch(err => {
+            console.error(`Error fetching client ${clientId}:`, err);
+            return null;
+          })
+        );
+        
+        const clientResults = await Promise.all(clientPromises);
+        
+        // Build the lookup map
+        const map = new Map<string, { first_name: string; last_name: string }>();
+        clientResults.forEach((client, index) => {
+          if (client) {
+            map.set(uniqueClientIds[index], {
+              first_name: client.first_name,
+              last_name: client.last_name,
+            });
+          }
+        });
+        
+        setClientsMap(map);
+      } catch (err) {
+        console.error('Error fetching clients:', err);
+      } finally {
+        setIsLoadingClients(false);
+      }
+    };
+
+    fetchClients();
+  }, [agreements]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -137,7 +205,7 @@ export function AgreementsList() {
       )}
 
       {/* Agreements Table */}
-      {isLoading ? (
+      {isLoading || isLoadingClients ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -148,6 +216,7 @@ export function AgreementsList() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Client</TableHead>
                     <TableHead>Agreement ID</TableHead>
                     <TableHead>Policy ID</TableHead>
                     <TableHead className="text-right">Principal</TableHead>
@@ -159,42 +228,51 @@ export function AgreementsList() {
                 <TableBody>
                   {agreements.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No agreements found matching your criteria.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    agreements.map((agreement) => (
-                      <TableRow 
-                        key={agreement.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleRowClick(agreement.id)}
-                      >
-                        <TableCell className="font-medium">
-                          {agreement.id.slice(0, 8)}...
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {agreement.policy_id.slice(0, 8)}...
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(agreement.principal_amount_pennies / 100)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {(agreement.apr_bps / 100).toFixed(2)}%
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {agreement.term_months} months
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={getStatusColor(agreement.status)}
-                          >
-                            {agreement.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    agreements.map((agreement) => {
+                      const client = clientsMap.get(agreement.client_id);
+                      return (
+                        <TableRow 
+                          key={agreement.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleRowClick(agreement.id)}
+                        >
+                         
+                          <TableCell>
+                            {client 
+                              ? `${client.first_name} ${client.last_name}` 
+                              : agreement.client_id.slice(0, 8) + '...'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {agreement.id.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {agreement.policy_id.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(agreement.principal_amount_pennies / 100)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {(agreement.apr_bps / 100).toFixed(2)}%
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {agreement.term_months} months
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant="outline" 
+                              className={getStatusColor(agreement.status)}
+                            >
+                              {agreement.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

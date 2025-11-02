@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
+import uuid
 from database import get_db
 from middleware.auth import AuthContext, get_auth_context
 from middleware.rbac import require_role
@@ -77,40 +78,43 @@ async def create_agreement(
     
     # Verify client and policy
     client = db.query(models.Client).filter(
-        models.Client.id == agreement_data.client_id,
-        models.Client.organisation_id == auth.organisation_id
+        models.Client.id == uuid.UUID(agreement_data.client_id),
+        models.Client.organisation_id == uuid.UUID(auth.organisation_id)
     ).first()
     
     policy = db.query(models.Policy).filter(
-        models.Policy.id == agreement_data.policy_id,
-        models.Policy.organisation_id == auth.organisation_id
+        models.Policy.id == uuid.UUID(agreement_data.policy_id),
+        models.Policy.organisation_id == uuid.UUID(auth.organisation_id)
     ).first()
     
     if not client or not policy:
         raise HTTPException(status_code=404, detail="Client or policy not found")
     
     # Calculate instalment schedule
-    principal = float(agreement_data.principal_amount)
+    principal = agreement_data.principal_amount_pennies / 100  # Convert pennies to pounds
     term_months = agreement_data.term_months
     apr_bps = agreement_data.apr_bps
     monthly_rate = (apr_bps / 10000) / 12
     monthly_payment = principal * monthly_rate / (1 - pow(1 + monthly_rate, -term_months))
     
-    start_date = agreement_data.start_date or datetime.utcnow()
-    end_date = start_date + timedelta(days=term_months * 30)
+    signed_at = agreement_data.signed_at or datetime.utcnow()
+    activated_at = signed_at + timedelta(days=1)  # Assume activated next day
     
-    # Create agreement
+    # Create agreement with explicit timestamps
+    now = datetime.utcnow()
     agreement = models.Agreement(
-        organisation_id=auth.organisation_id,
-        client_id=agreement_data.client_id,
-        policy_id=agreement_data.policy_id,
-        principal_amount=agreement_data.principal_amount,
+        organisation_id=uuid.UUID(auth.organisation_id),
+        client_id=uuid.UUID(agreement_data.client_id),
+        policy_id=uuid.UUID(agreement_data.policy_id),
+        principal_amount_pennies=agreement_data.principal_amount_pennies,
         apr_bps=agreement_data.apr_bps,
         term_months=agreement_data.term_months,
+        broker_fee_bps=agreement_data.broker_fee_bps,
         status=models.AgreementStatusEnum.DRAFT,
-        start_date=start_date,
-        end_date=end_date,
-        outstanding_amount=agreement_data.principal_amount
+        signed_at=signed_at,
+        activated_at=activated_at,
+        created_at=now,
+        updated_at=now
     )
     
     db.add(agreement)
@@ -118,33 +122,25 @@ async def create_agreement(
     
     # Create instalments
     for i in range(term_months):
-        due_date = start_date + timedelta(days=i * 30)
+        due_date = signed_at + timedelta(days=i * 30)
         instalment = models.Instalment(
             agreement_id=agreement.id,
-            sequence=i + 1,
+            sequence_number=i + 1,
             due_date=due_date,
-            amount_due=Decimal(str(round(monthly_payment, 2))),
-            amount_paid=Decimal(0),
+            amount_pennies=int(round(monthly_payment * 100)),  # Convert to pennies
             status=models.InstalmentStatusEnum.UPCOMING
         )
         db.add(instalment)
     
-    # Create event
-    event = models.AgreementEvent(
-        agreement_id=agreement.id,
-        type="AGREEMENT_CREATED",
-        actor_type=auth.role,
-        meta={"user_id": auth.user_id}
-    )
-    db.add(event)
+    # Note: AgreementEvent model doesn't exist in current database, skipping event creation
     
     # Audit log
     audit_log = models.AuditLog(
-        organisation_id=auth.organisation_id,
+        organisation_id=uuid.UUID(auth.organisation_id),
         actor_type=auth.role,
         action="CREATE",
         entity="AGREEMENT",
-        after={"id": agreement.id}
+        after={"id": str(agreement.id)}
     )
     db.add(audit_log)
     
@@ -175,16 +171,60 @@ async def propose_agreement(
     
     agreement.status = models.AgreementStatusEnum.PROPOSED
     
-    # Create event
-    event = models.AgreementEvent(
-        agreement_id=id,
-        type="AGREEMENT_PROPOSED",
-        actor_type=auth.role,
-        meta={"user_id": auth.user_id}
-    )
-    db.add(event)
+    # Note: AgreementEvent model doesn't exist in current database, skipping event creation
     
     db.commit()
     db.refresh(agreement)
     
     return agreement
+
+@router.delete("/{id}")
+async def delete_agreement(
+    id: str,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context)
+):
+    require_role("BROKER", "BROKER_ADMIN")(auth)
+    
+    # Find the agreement
+    query = db.query(models.Agreement).filter(models.Agreement.id == id)
+    
+    if auth.role != "INTERNAL":
+        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
+    
+    agreement = query.first()
+    
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    
+    # Only allow deletion of draft, proposed, or pending agreements
+    if agreement.status not in [models.AgreementStatusEnum.DRAFT, models.AgreementStatusEnum.PROPOSED]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete agreement with status {agreement.status}. Only DRAFT and PROPOSED agreements can be deleted."
+        )
+    
+    # Store agreement data for audit log
+    agreement_data = {
+        "id": str(agreement.id),
+        "client_id": str(agreement.client_id),
+        "policy_id": str(agreement.policy_id),
+        "status": str(agreement.status),
+        "principal_amount_pennies": agreement.principal_amount_pennies
+    }
+    
+    # Delete the agreement (instalments will be cascade deleted)
+    db.delete(agreement)
+    
+    # Audit log
+    audit_log = models.AuditLog(
+        organisation_id=auth.organisation_id,
+        actor_type=auth.role,
+        action="DELETE",
+        entity="AGREEMENT",
+        before=agreement_data
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"message": "Agreement deleted successfully"}

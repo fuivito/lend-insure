@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:3001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -36,12 +36,27 @@ class APIClient {
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, config);
 
+      console.log(`API Response [${method} ${endpoint}]:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-        throw new Error(error.detail || `HTTP ${response.status}`);
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('API Error Response:', errorData);
+          errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+        } catch {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const responseData = await response.json();
+      console.log(`API Success Response [${method} ${endpoint}]:`, responseData);
+      return responseData;
     } catch (error) {
       console.error(`API Error [${method} ${endpoint}]:`, error);
       throw error;
@@ -67,6 +82,19 @@ class APIClient {
     return this.request<any>('/api/broker/clients', {
       method: 'POST',
       body: data,
+    });
+  }
+
+  async updateClient(id: string, data: any) {
+    return this.request<any>(`/api/broker/clients/${id}`, {
+      method: 'PUT',
+      body: data,
+    });
+  }
+
+  async deleteClient(id: string) {
+    return this.request<any>(`/api/broker/clients/${id}`, {
+      method: 'DELETE',
     });
   }
 
@@ -99,6 +127,12 @@ class APIClient {
     });
   }
 
+  async deleteAgreement(id: string) {
+    return this.request<any>(`/api/broker/agreements/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Policies
   async createPolicy(data: any) {
     return this.request<any>('/api/broker/policies', {
@@ -109,6 +143,11 @@ class APIClient {
 
   async getPolicy(id: string) {
     return this.request<any>(`/api/broker/policies/${id}`);
+  }
+
+  // Dashboard
+  async getDashboard() {
+    return this.request<any>('/api/broker/dashboard');
   }
 }
 

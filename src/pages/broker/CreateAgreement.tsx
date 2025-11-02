@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockBrokerClients, type BrokerClient } from '@/lib/demo/brokerClients';
+import { useClients } from '@/hooks/useClients';
+import { apiClient } from '@/lib/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, 
@@ -30,8 +31,17 @@ import {
   Check
 } from 'lucide-react';
 
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
 interface AgreementData {
-  client: BrokerClient | null;
+  client: Client | null;
   premium: number;
   duration: number;
   apr: number;
@@ -56,21 +66,60 @@ export function CreateAgreement() {
   const [currentStep, setCurrentStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [agreementData, setAgreementData] = useState<AgreementData>(initialData);
+  const [isCreatingAgreement, setIsCreatingAgreement] = useState(false);
 
   // Pre-select client if coming from client detail page
   const preSelectedClientId = searchParams.get('clientId');
-  const preSelectedClient = preSelectedClientId ? 
-    mockBrokerClients.find(c => c.id === preSelectedClientId) : null;
   
-  // Initialize with pre-selected client if available
-  if (preSelectedClient && !agreementData.client) {
-    setAgreementData(prev => ({ ...prev, client: preSelectedClient }));
-  }
+  // Use real API data instead of mock data
+  const { clients, isLoading: isLoadingClients, error: clientsError, refetch } = useClients(searchQuery, 1, 100);
+  
+  // Fetch the specific client if clientId is provided
+  const [preSelectedClient, setPreSelectedClient] = useState<Client | null>(null);
+  const [isLoadingPreSelectedClient, setIsLoadingPreSelectedClient] = useState(false);
+  
+  // Fetch pre-selected client directly from API if clientId is provided
+  useEffect(() => {
+    if (preSelectedClientId && !preSelectedClient) {
+      setIsLoadingPreSelectedClient(true);
+      apiClient.getClient(preSelectedClientId)
+        .then(client => {
+          setPreSelectedClient(client);
+          setAgreementData(prev => ({ ...prev, client }));
+        })
+        .catch(err => {
+          console.error('Error fetching pre-selected client:', err);
+        })
+        .finally(() => {
+          setIsLoadingPreSelectedClient(false);
+        });
+    }
+  }, [preSelectedClientId, preSelectedClient]);
+  
+  // Fallback: Use client from clients list if available and not already set
+  useEffect(() => {
+    if (preSelectedClientId && !preSelectedClient && clients.length > 0) {
+      const clientFromList = clients.find(c => c.id === preSelectedClientId);
+      if (clientFromList && !agreementData.client) {
+        setPreSelectedClient(clientFromList);
+        setAgreementData(prev => ({ ...prev, client: clientFromList }));
+      }
+    }
+  }, [preSelectedClientId, clients, preSelectedClient, agreementData.client]);
 
-  const filteredClients = mockBrokerClients.filter(client =>
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredClients = clients.filter(client =>
+    `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Sort clients to put pre-selected client at the top
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    if (preSelectedClientId) {
+      if (a.id === preSelectedClientId) return -1;
+      if (b.id === preSelectedClientId) return 1;
+    }
+    return 0;
+  });
 
   const calculateRevenue = () => {
     const baseCommission = agreementData.premium * BASE_COMMISSION_RATE;
@@ -92,7 +141,7 @@ export function CreateAgreement() {
     }).format(amount);
   };
 
-  const handleSelectClient = (client: BrokerClient) => {
+  const handleSelectClient = (client: Client) => {
     setAgreementData(prev => ({ ...prev, client }));
   };
 
@@ -108,21 +157,86 @@ export function CreateAgreement() {
     }
   };
 
-  const handleSendToClient = () => {
-    console.log('Sending agreement to client:', {
-      client: agreementData.client,
-      premium: agreementData.premium,
-      duration: agreementData.duration,
-      apr: agreementData.apr,
-      revenue: calculateRevenue()
-    });
+  const handleSendToClient = async () => {
+    if (!agreementData.client) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a client",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate required fields
+    if (agreementData.premium <= 0) {
+      toast({
+        title: "Invalid Premium",
+        description: "Premium amount must be greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (agreementData.duration <= 0) {
+      toast({
+        title: "Invalid Duration",
+        description: "Duration must be greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCreatingAgreement(true);
     
-    toast({
-      title: "Agreement sent successfully!",
-      description: `Agreement sent to ${agreementData.client?.name}`,
-    });
-    
-    navigate('/app/broker/agreements');
+    try {
+      // Step 1: Create a policy for this client
+      const policyData = {
+        client_id: agreementData.client.id,
+        insurer: "Demo Insurance Co", // You may want to make this configurable
+        product_type: "General Insurance",
+        policy_number: `POL-${Date.now()}`, // Generate unique policy number
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
+        premium_amount_pennies: Math.round(agreementData.premium * 100) // Convert to pennies
+      };
+
+      console.log('Creating policy:', policyData);
+      const policy = await apiClient.createPolicy(policyData);
+      
+      if (!policy || !policy.id) {
+        throw new Error('Failed to create policy');
+      }
+
+      // Step 2: Create the agreement using the policy_id
+      const agreementPayload = {
+        client_id: agreementData.client.id,
+        policy_id: policy.id,
+        principal_amount_pennies: Math.round(agreementData.premium * 100), // Convert to pennies
+        apr_bps: Math.round(agreementData.apr * 100), // Convert to basis points
+        term_months: agreementData.duration,
+        broker_fee_bps: Math.round(BASE_COMMISSION_RATE * 10000), // Convert to basis points
+        signed_at: new Date().toISOString()
+      };
+
+      console.log('Creating agreement:', agreementPayload);
+      await apiClient.createAgreement(agreementPayload);
+      
+      toast({
+        title: "Agreement created successfully!",
+        description: `Agreement created for ${agreementData.client.first_name} ${agreementData.client.last_name}`,
+      });
+      
+      navigate('/app/broker/agreements');
+    } catch (error) {
+      console.error('Error creating agreement:', error);
+      toast({
+        title: "Error creating agreement",
+        description: error instanceof Error ? error.message : "Failed to create agreement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreatingAgreement(false);
+    }
   };
 
   const revenue = calculateRevenue();
@@ -220,7 +334,23 @@ export function CreateAgreement() {
 
               {/* Client List */}
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {filteredClients.map((client) => (
+                {isLoadingClients ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading clients...
+                  </div>
+                ) : clientsError ? (
+                  <div className="text-center py-8 text-destructive">
+                    Error loading clients: {clientsError}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={refetch}
+                      className="mt-2"
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : sortedClients.map((client) => (
                   <div
                     key={client.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -232,17 +362,16 @@ export function CreateAgreement() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium">{client.name}</h4>
+                        <h4 className="font-medium">{client.first_name} {client.last_name}</h4>
                         <p className="text-sm text-muted-foreground">{client.email}</p>
-                        <p className="text-sm text-muted-foreground">{client.phone}</p>
+                        <p className="text-sm text-muted-foreground">{client.phone || 'No phone provided'}</p>
                       </div>
-                      <Badge variant="secondary">{client.agreementCount} agreements</Badge>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {filteredClients.length === 0 && (
+              {!isLoadingClients && !clientsError && sortedClients.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No clients found matching your search.
                 </div>
@@ -387,7 +516,7 @@ export function CreateAgreement() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <p className="text-sm text-muted-foreground">Client</p>
-                      <p className="font-medium">{agreementData.client?.name}</p>
+                      <p className="font-medium">{agreementData.client ? `${agreementData.client.first_name} ${agreementData.client.last_name}` : ''}</p>
                       <p className="text-sm text-muted-foreground">{agreementData.client?.email}</p>
                     </div>
                     <div>
@@ -472,8 +601,8 @@ export function CreateAgreement() {
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button onClick={handleSendToClient}>
-              Send to Client
+            <Button onClick={handleSendToClient} disabled={isCreatingAgreement}>
+              {isCreatingAgreement ? 'Creating Agreement...' : 'Send to Client'}
             </Button>
           )}
         </div>

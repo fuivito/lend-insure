@@ -1,11 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { mockBrokerAgreements } from '@/lib/demo/brokerAgreements';
-import { mockBrokerClients } from '@/lib/demo/brokerClients';
+import { useAgreement } from '@/hooks/useAgreement';
+import { apiClient } from '@/lib/api/client';
 import { 
   mockAgreementDocuments, 
   mockAgreementActivity, 
@@ -27,33 +28,81 @@ import {
   Circle,
   AlertCircle,
   Clock,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
+
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
 
 export function AgreementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Find the agreement
-  const agreement = mockBrokerAgreements.find(a => a.id === id);
+  // Fetch agreement from API
+  const { agreement, isLoading, error } = useAgreement(id);
   
-  // Find the client
-  const client = agreement ? mockBrokerClients.find(c => c.id === agreement.clientId) : null;
+  // Fetch client from API
+  const [client, setClient] = useState<Client | null>(null);
+  const [isLoadingClient, setIsLoadingClient] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchClient = async () => {
+      if (!agreement?.client_id) return;
+      
+      setIsLoadingClient(true);
+      setClientError(null);
+      
+      try {
+        const clientData = await apiClient.getClient(agreement.client_id);
+        setClient(clientData);
+      } catch (err) {``
+        setClientError(err instanceof Error ? err.message : 'Failed to fetch client');
+        console.error('Error fetching client:', err);
+      } finally {
+        setIsLoadingClient(false);
+      }
+    };
+
+    fetchClient();
+  }, [agreement?.client_id]);
   
-  // Get documents and activity
+  // Get documents and activity (using mock data for now)
   const documents = id ? mockAgreementDocuments[id] || [] : [];
   const activities = id ? mockAgreementActivity[id] || [] : [];
   
   // Get status timeline
-  const timeline = agreement ? getStatusTimeline(agreement.status, agreement.startDate) : [];
+  const timeline = agreement ? getStatusTimeline(agreement.status, agreement.signed_at || agreement.created_at) : [];
 
-  if (!agreement || !client) {
+  // Show loading state
+  if (isLoading || isLoadingClient) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (!agreement || error) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-foreground mb-2">Agreement Not Found</h2>
-          <p className="text-muted-foreground mb-4">The requested agreement could not be found.</p>
+          <p className="text-muted-foreground mb-4">
+            {error || 'The requested agreement could not be found.'}
+          </p>
           <Button onClick={() => navigate('/app/broker/agreements')}>
             Back to Agreements
           </Button>
@@ -61,6 +110,7 @@ export function AgreementDetail() {
       </div>
     );
   }
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -86,12 +136,19 @@ export function AgreementDetail() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'ACTIVE':
       case 'Active':
         return 'bg-green-100 text-green-800 border-green-200';
+      case 'PENDING':
+      case 'PROPOSED':
+      case 'DRAFT':
       case 'Pending':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'SIGNED':
+      case 'TERMINATED':
       case 'Completed':
         return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'DEFAULTED':
       case 'Defaulted':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
@@ -141,13 +198,30 @@ export function AgreementDetail() {
     console.log('Viewing document:', doc);
   };
 
-  const handleCancelDraft = () => {
-    toast({
-      title: "Agreement cancelled",
-      description: "The draft agreement has been cancelled",
-    });
-    console.log('Cancelling agreement:', agreement.id);
-    navigate('/app/broker/agreements');
+  const handleCancelDraft = async () => {
+    if (!agreement || !id) return;
+
+    setIsDeleting(true);
+    
+    try {
+      await apiClient.deleteAgreement(id);
+      
+      toast({
+        title: "Agreement cancelled",
+        description: "The draft agreement has been cancelled and deleted",
+      });
+      
+      navigate('/app/broker/agreements');
+    } catch (error) {
+      console.error('Error deleting agreement:', error);
+      toast({
+        title: "Error cancelling agreement",
+        description: error instanceof Error ? error.message : "Failed to cancel agreement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -160,7 +234,7 @@ export function AgreementDetail() {
     });
   };
 
-  const brokerRevenue = calculateBrokerRevenue(agreement.premium, agreement.apr);
+  const brokerRevenue = (agreement.principal_amount_pennies / 100) * (agreement.broker_fee_bps / 10000);
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -176,17 +250,30 @@ export function AgreementDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Agreement {agreement.id}</h1>
+            <h1 className="text-3xl font-bold text-foreground">Agreement {agreement.id.slice(0, 8)}...</h1>
             <p className="text-muted-foreground mt-2">
-              {agreement.policyType} financing agreement
+              Policy: {agreement.policy_id.slice(0, 8)}... financing agreement
             </p>
           </div>
         </div>
         
-        {agreement.status === 'Pending' && (
-          <Button variant="destructive" onClick={handleCancelDraft}>
-            <X className="h-4 w-4 mr-2" />
-            Cancel Draft
+        {(agreement.status === 'PROPOSED' || agreement.status === 'DRAFT') && (
+          <Button 
+            variant="destructive" 
+            onClick={handleCancelDraft}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4 mr-2" />
+                Cancel Draft
+              </>
+            )}
           </Button>
         )}
       </div>
@@ -210,9 +297,15 @@ export function AgreementDetail() {
                   Client Information
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium">{client.name}</p>
-                  <p className="text-sm text-muted-foreground">{client.email}</p>
-                  <p className="text-sm text-muted-foreground">{client.phone}</p>
+                  <p className="font-medium">
+                    {client 
+                      ? `${client.first_name} ${client.last_name}` 
+                      : clientError 
+                        ? 'Client not found' 
+                        : 'Loading...'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{client?.email || 'N/A'}</p>
+                  <p className="text-sm text-muted-foreground">{client?.phone || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -224,9 +317,9 @@ export function AgreementDetail() {
                   Financing Details
                 </div>
                 <div className="space-y-1">
-                  <p className="text-lg font-semibold">{formatCurrency(agreement.premium)}</p>
+                  <p className="text-lg font-semibold">{formatCurrency(agreement.principal_amount_pennies / 100)}</p>
                   <p className="text-sm text-muted-foreground">Premium Amount</p>
-                  <p className="text-sm font-medium">{agreement.apr}% APR</p>
+                  <p className="text-sm font-medium">{(agreement.apr_bps / 100).toFixed(2)}% APR</p>
                 </div>
               </div>
             </div>
@@ -238,9 +331,15 @@ export function AgreementDetail() {
                   Term Details
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium">{formatDate(agreement.startDate)}</p>
+                  <p className="font-medium">{agreement.signed_at ? formatDate(agreement.signed_at) : 'Not signed'}</p>
                   <p className="text-sm text-muted-foreground">Start Date</p>
-                  <p className="text-sm font-medium">{formatDate(agreement.endDate)}</p>
+                  <p className="text-sm font-medium">
+                    {agreement.signed_at ? formatDate(
+                      new Date(new Date(agreement.signed_at).setMonth(
+                        new Date(agreement.signed_at).getMonth() + agreement.term_months
+                      )).toISOString()
+                    ) : 'N/A'}
+                  </p>
                   <p className="text-sm text-muted-foreground">End Date</p>
                 </div>
               </div>
@@ -255,7 +354,7 @@ export function AgreementDetail() {
                 <div className="space-y-1">
                   <p className="text-lg font-semibold text-primary">{formatCurrency(brokerRevenue)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {((brokerRevenue / agreement.premium) * 100).toFixed(1)}% of premium
+                    {((brokerRevenue / (agreement.principal_amount_pennies / 100)) * 100).toFixed(1)}% of premium
                   </p>
                 </div>
               </div>

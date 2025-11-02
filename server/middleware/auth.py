@@ -15,15 +15,16 @@ async def get_auth_context(
     x_role: Optional[str] = Header(None),
     authorization: Optional[str] = Header(None)
 ) -> AuthContext:
-    # Development mode: allow dev headers
-    if settings.ENVIRONMENT == "development" and x_user_id and x_org_id and x_role:
+    # Development mode: always allow (use provided headers or defaults)
+    if settings.ENVIRONMENT == "development":
+        print("in development mode")
         return AuthContext(
-            user_id=x_user_id,
-            organisation_id=x_org_id,
-            role=x_role
+            user_id=x_user_id or "650e8400-e29b-41d4-a716-446655440000",
+            organisation_id=x_org_id or "550e8400-e29b-41d4-a716-446655440000",
+            role=x_role or "BROKER"
         )
     
-    # JWT authentication
+    # Production mode: require JWT authentication
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
