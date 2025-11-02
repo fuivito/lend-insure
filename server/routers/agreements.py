@@ -177,3 +177,54 @@ async def propose_agreement(
     db.refresh(agreement)
     
     return agreement
+
+@router.delete("/{id}")
+async def delete_agreement(
+    id: str,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context)
+):
+    require_role("BROKER", "BROKER_ADMIN")(auth)
+    
+    # Find the agreement
+    query = db.query(models.Agreement).filter(models.Agreement.id == id)
+    
+    if auth.role != "INTERNAL":
+        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
+    
+    agreement = query.first()
+    
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    
+    # Only allow deletion of draft, proposed, or pending agreements
+    if agreement.status not in [models.AgreementStatusEnum.DRAFT, models.AgreementStatusEnum.PROPOSED]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete agreement with status {agreement.status}. Only DRAFT and PROPOSED agreements can be deleted."
+        )
+    
+    # Store agreement data for audit log
+    agreement_data = {
+        "id": str(agreement.id),
+        "client_id": str(agreement.client_id),
+        "policy_id": str(agreement.policy_id),
+        "status": str(agreement.status),
+        "principal_amount_pennies": agreement.principal_amount_pennies
+    }
+    
+    # Delete the agreement (instalments will be cascade deleted)
+    db.delete(agreement)
+    
+    # Audit log
+    audit_log = models.AuditLog(
+        organisation_id=auth.organisation_id,
+        actor_type=auth.role,
+        action="DELETE",
+        entity="AGREEMENT",
+        before=agreement_data
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"message": "Agreement deleted successfully"}
