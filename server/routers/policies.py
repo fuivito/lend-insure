@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from database import get_db
 from middleware.auth import AuthContext, get_auth_context
-from middleware.rbac import require_role
+from middleware.rbac import require_minimum_role
 import models
 import schemas
 
@@ -15,7 +15,8 @@ async def create_policy(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
+    # MEMBER+ can create policies
+    require_minimum_role("MEMBER")(auth)
     
     # Verify client belongs to organisation
     client = db.query(models.Client).filter(
@@ -60,14 +61,13 @@ async def list_policies(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Policy)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Policy.organisation_id == auth.organisation_id)
-    
-    policies = query.offset(skip).limit(limit).all()
+    # Any authenticated user can list policies
+    require_minimum_role("READ_ONLY")(auth)
+
+    # Always filter by organisation
+    policies = db.query(models.Policy).filter(
+        models.Policy.organisation_id == auth.organisation_id
+    ).offset(skip).limit(limit).all()
     
     return policies
 
@@ -77,14 +77,13 @@ async def get_policy(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Policy).filter(models.Policy.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Policy.organisation_id == auth.organisation_id)
-    
-    policy = query.first()
+    # Any authenticated user can view a policy
+    require_minimum_role("READ_ONLY")(auth)
+
+    policy = db.query(models.Policy).filter(
+        models.Policy.id == id,
+        models.Policy.organisation_id == auth.organisation_id
+    ).first()
     
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")

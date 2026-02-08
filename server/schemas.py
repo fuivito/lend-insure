@@ -3,7 +3,11 @@ from typing import Optional, List, Any
 from datetime import datetime
 from decimal import Decimal
 import uuid
-from models import BrokerRoleEnum, AgreementStatusEnum, InstalmentStatusEnum, PaymentStatusEnum, OrganisationStatusEnum, ProposalStatusEnum
+from models import (
+    AgreementStatusEnum, InstalmentStatusEnum,
+    PaymentStatusEnum, OrganisationStatusEnum, ProposalStatusEnum,
+    OrgTypeEnum, MembershipRoleEnum, MembershipStatusEnum
+)
 
 # Client schemas
 class ClientCreate(BaseModel):
@@ -131,19 +135,20 @@ class AgreementResponse(BaseModel):
 class InstalmentResponse(BaseModel):
     id: str
     agreement_id: str
-    sequence: int
+    sequence_number: int
     due_date: datetime
-    amount_due: Decimal
-    amount_paid: Decimal
+    amount_pennies: int
     status: InstalmentStatusEnum
-    
+    created_at: datetime
+    updated_at: Optional[datetime]
+
     @field_validator('id', 'agreement_id', mode='before')
     @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
         return v
-    
+
     class Config:
         from_attributes = True
         json_encoders = {
@@ -197,3 +202,154 @@ class PaginationMeta(BaseModel):
 class PaginatedResponse(BaseModel):
     data: List
     pagination: PaginationMeta
+
+
+# ============================================================================
+# User schemas
+# ============================================================================
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    class Config:
+        from_attributes = True
+        json_encoders = {uuid.UUID: str}
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+# ============================================================================
+# Organisation schemas
+# ============================================================================
+
+class OrganisationCreate(BaseModel):
+    name: str
+    org_type: OrgTypeEnum = OrgTypeEnum.BROKER
+
+
+class OrganisationUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class OrganisationResponse(BaseModel):
+    id: str
+    name: str
+    org_type: OrgTypeEnum
+    status: OrganisationStatusEnum
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    class Config:
+        from_attributes = True
+        json_encoders = {uuid.UUID: str}
+
+
+# ============================================================================
+# Membership schemas
+# ============================================================================
+
+class MembershipResponse(BaseModel):
+    id: str
+    organisation_id: str
+    user_id: str
+    role: MembershipRoleEnum
+    status: MembershipStatusEnum
+    created_at: datetime
+    updated_at: Optional[datetime]
+    # Included user info for convenience
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+
+    @field_validator('id', 'organisation_id', 'user_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    class Config:
+        from_attributes = True
+        json_encoders = {uuid.UUID: str}
+
+
+class MembershipUpdate(BaseModel):
+    role: Optional[MembershipRoleEnum] = None
+    status: Optional[MembershipStatusEnum] = None
+
+
+# ============================================================================
+# Invitation schemas
+# ============================================================================
+
+class InviteUserRequest(BaseModel):
+    email: EmailStr
+    role: MembershipRoleEnum = MembershipRoleEnum.MEMBER
+
+
+class InvitationResponse(BaseModel):
+    id: str
+    organisation_id: str
+    email: str
+    role: MembershipRoleEnum
+    expires_at: datetime
+    accepted_at: Optional[datetime]
+    created_at: datetime
+
+    @field_validator('id', 'organisation_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    class Config:
+        from_attributes = True
+        json_encoders = {uuid.UUID: str}
+
+
+class InviteUserResponse(BaseModel):
+    invitation: InvitationResponse
+    invite_url: Optional[str] = None  # Only returned in dev/staging
+
+
+# ============================================================================
+# Auth schemas
+# ============================================================================
+
+class SignupWithOrgRequest(BaseModel):
+    """Request to create a new organisation for an authenticated user."""
+    name: str
+    org_type: OrgTypeEnum = OrgTypeEnum.BROKER
+
+
+class RedeemInvitationRequest(BaseModel):
+    """Request to redeem an invitation token."""
+    token: str
+
+
+class AuthMeResponse(BaseModel):
+    """Response for /api/auth/me endpoint."""
+    user: UserResponse
+    organisation: OrganisationResponse
+    membership: MembershipResponse

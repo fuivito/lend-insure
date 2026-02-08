@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import health, clients, agreements, dashboard, policies
+from routers import health, clients, agreements, dashboard, policies, auth, memberships, organisations
 
 app = FastAPI(
     title="LendInsure API",
@@ -23,7 +23,10 @@ def root():
 
 # Register routers
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(agreements.router)
 app.include_router(clients.router)
 app.include_router(dashboard.router)
 app.include_router(policies.router)
+app.include_router(memberships.router)
+app.include_router(organisations.router)

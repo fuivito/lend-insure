@@ -1,14 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { 
-  Home, 
-  CreditCard, 
-  FileText, 
-  HelpCircle, 
-  Users, 
-  PieChart, 
-  Briefcase,
+import {
+  Home,
+  CreditCard,
+  FileText,
+  HelpCircle,
+  Users,
+  PieChart,
   Building,
   ScrollText
 } from 'lucide-react';
@@ -29,13 +28,13 @@ const brokerNavItems = [
 ];
 
 export function Sidebar() {
-  const { role } = useAuth();
+  const { membership } = useAuth();
   const location = useLocation();
-  
-  // Debug: log the current role to console
-  console.log('Sidebar rendering with role:', role);
-  
-  const navItems = role === 'broker' ? brokerNavItems : customerNavItems;
+
+  // Users with a membership are brokers (org members)
+  // Customers use a separate portal with agreement access tokens
+  const isBroker = !!membership;
+  const navItems = isBroker ? brokerNavItems : customerNavItems;
 
   return (
     <div className="h-full bg-card border-r border-border flex flex-col">
@@ -84,7 +83,7 @@ export function Sidebar() {
       {/* Role indicator */}
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground">
-          Logged in as <span className="font-medium capitalize">{role}</span>
+          Logged in as <span className="font-medium capitalize">{membership?.role?.toLowerCase() || 'guest'}</span>
         </div>
       </div>
     </div>

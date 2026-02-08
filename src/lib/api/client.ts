@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:3001';
+import { supabase } from '@/integrations/supabase/client';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -13,20 +15,34 @@ class APIClient {
     this.baseURL = baseURL;
   }
 
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (session?.access_token) {
+      // Use JWT from Supabase session
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    } else {
+      // No session - user needs to log in
+      // Don't send demo headers - this was causing data leakage
+      console.warn('No auth session available - API calls will fail');
+      throw new Error('Not authenticated. Please log in.');
+    }
+
+    return headers;
+  }
+
   private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { method = 'GET', body, headers = {} } = options;
 
-    // Dev mode: Use demo headers
-    const defaultHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-Id': '650e8400-e29b-41d4-a716-446655440000', // Demo broker user
-      'X-Org-Id': '550e8400-e29b-41d4-a716-446655440000', // Demo org
-      'X-Role': 'BROKER',
-    };
+    const authHeaders = await this.getAuthHeaders();
 
     const config: RequestInit = {
       method,
-      headers: { ...defaultHeaders, ...headers },
+      headers: { ...authHeaders, ...headers },
     };
 
     if (body) {
@@ -39,7 +55,6 @@ class APIClient {
       console.log(`API Response [${method} ${endpoint}]:`, {
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {
@@ -51,11 +66,21 @@ class APIClient {
         } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
+
+        // Handle auth errors
+        if (response.status === 401) {
+          // Session might have expired, try to refresh
+          const { error } = await supabase.auth.refreshSession();
+          if (error) {
+            // Redirect to login if refresh fails
+            window.location.href = '/login';
+          }
+        }
+
         throw new Error(errorMessage);
       }
 
       const responseData = await response.json();
-      console.log(`API Success Response [${method} ${endpoint}]:`, responseData);
       return responseData;
     } catch (error) {
       console.error(`API Error [${method} ${endpoint}]:`, error);
@@ -69,7 +94,7 @@ class APIClient {
     if (params?.search) searchParams.append('search', params.search);
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    
+
     const query = searchParams.toString();
     return this.request<any>(`/api/broker/clients${query ? `?${query}` : ''}`);
   }
@@ -105,7 +130,7 @@ class APIClient {
     if (params?.client_id) searchParams.append('client_id', params.client_id);
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    
+
     const query = searchParams.toString();
     return this.request<any>(`/api/broker/agreements${query ? `?${query}` : ''}`);
   }
@@ -148,6 +173,18 @@ class APIClient {
   // Dashboard
   async getDashboard() {
     return this.request<any>('/api/broker/dashboard');
+  }
+
+  // Organisation
+  async getOrganisation() {
+    return this.request<any>('/api/broker/organisation');
+  }
+
+  async updateOrganisation(data: { name?: string }) {
+    return this.request<any>('/api/broker/organisation', {
+      method: 'PUT',
+      body: data,
+    });
   }
 }
 

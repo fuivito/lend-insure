@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -28,6 +28,8 @@ const ITEMS_PER_PAGE = 8;
 
 type StatusFilter = 'all' | 'ACTIVE' | 'PROPOSED' | 'SIGNED' | 'TERMINATED' | 'DEFAULTED' | 'DRAFT';
 
+const VALID_STATUS_FILTERS: StatusFilter[] = ['ACTIVE', 'PROPOSED', 'SIGNED', 'TERMINATED', 'DEFAULTED', 'DRAFT'];
+
 interface Client {
   id: string;
   first_name: string;
@@ -39,9 +41,28 @@ interface Client {
 
 export function AgreementsList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    if (statusFromUrl && VALID_STATUS_FILTERS.includes(statusFromUrl as StatusFilter)) {
+      return statusFromUrl as StatusFilter;
+    }
+    return 'all';
+  });
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Sync status filter from URL when navigating (e.g. from dashboard cards)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus && VALID_STATUS_FILTERS.includes(urlStatus as StatusFilter)) {
+      setStatusFilter(urlStatus as StatusFilter);
+      setCurrentPage(1);
+    } else if (!urlStatus) {
+      setStatusFilter('all');
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   const { agreements, isLoading, error, totalPages } = useAgreements(
     statusFilter === 'all' ? undefined : statusFilter,
@@ -148,6 +169,12 @@ export function AgreementsList() {
   const handleStatusFilterChange = (value: StatusFilter) => {
     setStatusFilter(value);
     setCurrentPage(1);
+    if (value === 'all') {
+      searchParams.delete('status');
+      setSearchParams(searchParams, { replace: true });
+    } else {
+      setSearchParams({ status: value }, { replace: true });
+    }
   };
 
   const handleRowClick = (agreementId: string) => {

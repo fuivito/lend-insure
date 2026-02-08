@@ -1,47 +1,10 @@
-import { useState, useEffect } from 'react';
-import { authService, type User, type UserRole } from '@/lib/auth';
-
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(authService.getCurrentUser());
-  const [role, setRole] = useState<UserRole>(authService.getCurrentRole());
-  const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
-
-  const login = async (userRole: UserRole = 'customer') => {
-    const user = await authService.login(userRole);
-    setUser(user);
-    setRole(userRole);
-    setIsAuthenticated(true);
-    return user;
-  };
-
-  const logout = async () => {
-    await authService.logout();
-    setUser(null);
-    setRole('customer');
-    setIsAuthenticated(false);
-  };
-
-  const switchRole = (newRole: UserRole) => {
-    console.log('Switching role from', role, 'to', newRole);
-    authService.setRole(newRole);
-    setUser(authService.getCurrentUser());
-    setRole(newRole);
-    // Force page refresh to ensure all components update
-    window.location.reload();
-  };
-
-  const hasCompletedOnboarding = () => {
-    return authService.hasCompletedOnboarding();
-  };
-
-  return {
-    user,
-    role,
-    isAuthenticated,
-    login,
-    logout,
-    switchRole,
-    hasCompletedOnboarding,
-    hasRole: (checkRole: UserRole) => role === checkRole
-  };
-}
+// Re-export useAuth from context for convenience
+// This replaces the old mock auth with real Supabase auth
+export { useAuth } from '@/contexts/AuthContext';
+export type {
+  User,
+  Organisation,
+  Membership,
+  AuthState,
+  AuthContextValue,
+} from '@/contexts/AuthContext';

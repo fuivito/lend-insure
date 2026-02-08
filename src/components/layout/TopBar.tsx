@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -9,23 +8,26 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Menu, User, LogOut, Settings } from 'lucide-react';
-import type { User as UserType } from '@/lib/auth';
+import { useNavigate } from 'react-router-dom';
 
 interface TopBarProps {
   onMenuClick: () => void;
-  user: UserType | null;
 }
 
-export function TopBar({ onMenuClick, user }: TopBarProps) {
-  const { logout, role } = useAuth();
+export function TopBar({ onMenuClick }: TopBarProps) {
+  const { user, organisation, membership, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await logout();
-    // In a real app, you'd redirect to login page
-    window.location.href = '/';
+    await signOut();
+    navigate('/login');
   };
+
+  const displayName = user?.name || user?.email || 'User';
+  const displayEmail = user?.email || '';
+  const roleLabel = membership?.role || 'Member';
 
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
@@ -41,14 +43,18 @@ export function TopBar({ onMenuClick, user }: TopBarProps) {
 
       {/* Page title area - will be filled by pages */}
       <div className="flex-1 lg:ml-0 ml-4">
-        {/* This space can be used by pages for breadcrumbs or titles */}
+        {organisation && (
+          <span className="text-sm text-muted-foreground hidden md:block">
+            {organisation.name}
+          </span>
+        )}
       </div>
 
       {/* User menu */}
       <div className="flex items-center space-x-4">
-        {/* Account switcher */}
+        {/* Role badge */}
         <div className="hidden md:block text-sm text-muted-foreground">
-          Account: {role === 'broker' ? 'Broker' : 'Customer'}
+          {roleLabel}
         </div>
 
         {/* User dropdown */}
@@ -57,7 +63,7 @@ export function TopBar({ onMenuClick, user }: TopBarProps) {
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  {user?.name?.charAt(0) || 'U'}
+                  {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -65,9 +71,9 @@ export function TopBar({ onMenuClick, user }: TopBarProps) {
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{user?.name}</p>
+                <p className="text-sm font-medium leading-none">{displayName}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {user?.email}
+                  {displayEmail}
                 </p>
               </div>
             </DropdownMenuLabel>

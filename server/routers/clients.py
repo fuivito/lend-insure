@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime
 from database import get_db
 from middleware.auth import AuthContext, get_auth_context
-from middleware.rbac import require_role
+from middleware.rbac import require_minimum_role
 import models
 import schemas
 import math
@@ -20,13 +20,13 @@ async def list_clients(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Client)
-    
-    # Organisation scoping
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Client.organisation_id == auth.organisation_id)
+    # Any authenticated user can list clients
+    require_minimum_role("READ_ONLY")(auth)
+
+    # Always filter by organisation
+    query = db.query(models.Client).filter(
+        models.Client.organisation_id == auth.organisation_id
+    )
     
     # Search filter
     if search:
@@ -57,12 +57,13 @@ async def get_client(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Client).filter(models.Client.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Client.organisation_id == auth.organisation_id)
+    # Any authenticated user can view a client
+    require_minimum_role("READ_ONLY")(auth)
+
+    query = db.query(models.Client).filter(
+        models.Client.id == id,
+        models.Client.organisation_id == auth.organisation_id
+    )
     
     client = query.first()
     
@@ -78,15 +79,14 @@ async def update_client(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
-    
-    # Find the client
-    query = db.query(models.Client).filter(models.Client.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Client.organisation_id == auth.organisation_id)
-    
-    client = query.first()
+    # MEMBER+ can update clients
+    require_minimum_role("MEMBER")(auth)
+
+    # Find the client within user's organisation
+    client = db.query(models.Client).filter(
+        models.Client.id == id,
+        models.Client.organisation_id == auth.organisation_id
+    ).first()
     
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -145,15 +145,14 @@ async def delete_client(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
-    
-    # Find the client
-    query = db.query(models.Client).filter(models.Client.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Client.organisation_id == auth.organisation_id)
-    
-    client = query.first()
+    # ADMIN+ can delete clients
+    require_minimum_role("ADMIN")(auth)
+
+    # Find the client within user's organisation
+    client = db.query(models.Client).filter(
+        models.Client.id == id,
+        models.Client.organisation_id == auth.organisation_id
+    ).first()
     
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -200,7 +199,8 @@ async def create_client(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
+    # MEMBER+ can create clients
+    require_minimum_role("MEMBER")(auth)
     
     print("=== DEBUGGING CLIENT CREATION ===")
     print("1. Incoming client_data:", client_data)

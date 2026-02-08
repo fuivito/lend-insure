@@ -8,10 +8,28 @@ import uuid
 def generate_uuid():
     return uuid.uuid4()
 
-class BrokerRoleEnum(str, enum.Enum):
+class OrgTypeEnum(str, enum.Enum):
+    """Organisation type enum."""
     BROKER = "BROKER"
-    BROKER_ADMIN = "BROKER_ADMIN"
-    INTERNAL = "INTERNAL"
+    MGA = "MGA"
+    INSURER = "INSURER"
+    FLEXRA_INTERNAL = "FLEXRA_INTERNAL"
+
+
+class MembershipRoleEnum(str, enum.Enum):
+    """Membership role enum with hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY"""
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    MEMBER = "MEMBER"
+    READ_ONLY = "READ_ONLY"
+
+
+class MembershipStatusEnum(str, enum.Enum):
+    """Membership status enum."""
+    INVITED = "INVITED"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+    REMOVED = "REMOVED"
 
 class AgreementStatusEnum(str, enum.Enum):
     DRAFT = "DRAFT"
@@ -46,35 +64,113 @@ class ProposalStatusEnum(str, enum.Enum):
 
 class Organisation(Base):
     __tablename__ = "organisations"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
     name = Column(String, nullable=False)
+    org_type = Column(Enum(OrgTypeEnum), default=OrgTypeEnum.BROKER, nullable=False)
     status = Column(Enum(OrganisationStatusEnum), default=OrganisationStatusEnum.ACTIVE)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    broker_users = relationship("BrokerUser", back_populates="organisation", cascade="all, delete-orphan")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Membership-based relationships
+    memberships = relationship("Membership", back_populates="organisation", cascade="all, delete-orphan")
+    membership_invitations = relationship("MembershipInvitation", back_populates="organisation", cascade="all, delete-orphan")
     clients = relationship("Client", back_populates="organisation", cascade="all, delete-orphan")
     policies = relationship("Policy", back_populates="organisation", cascade="all, delete-orphan")
     agreements = relationship("Agreement", back_populates="organisation", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="organisation", cascade="all, delete-orphan")
-    # proposals = relationship("Proposal", back_populates="organisation", cascade="all, delete-orphan")  # Table doesn't exist
 
-class BrokerUser(Base):
-    __tablename__ = "broker_users"
-    
+class User(Base):
+    """
+    User table - 1:1 relationship with Supabase auth.users.
+    This stores application-level user data.
+    """
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    auth_user_id = Column(UUID(as_uuid=True), unique=True, nullable=False)  # References auth.users(id)
+    email = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # One user can have one membership (single org constraint)
+    membership = relationship("Membership", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_users_auth_user_id', 'auth_user_id'),
+        Index('idx_users_email', 'email'),
+    )
+
+
+class Membership(Base):
+    """
+    Membership table - links users to organisations.
+    CRITICAL: One user can only have ONE membership (single org constraint).
+    """
+    __tablename__ = "memberships"
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
     organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
-    role = Column(Enum(BrokerRoleEnum), nullable=False)
-    email = Column(String, unique=True, nullable=False)
-    name = Column(String, nullable=False)
-    password_hash = Column(String)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    role = Column(Enum(MembershipRoleEnum), default=MembershipRoleEnum.MEMBER, nullable=False)
+    status = Column(Enum(MembershipStatusEnum), default=MembershipStatusEnum.INVITED, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    organisation = relationship("Organisation", back_populates="broker_users")
-    
-    __table_args__ = (Index('idx_broker_users_organisation_id', 'organisation_id'),)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    organisation = relationship("Organisation", back_populates="memberships")
+    user = relationship("User", back_populates="membership")
+
+    __table_args__ = (
+        Index('idx_memberships_organisation_id', 'organisation_id'),
+        Index('idx_memberships_user_id', 'user_id'),
+        Index('idx_memberships_status', 'status'),
+    )
+
+
+class MembershipInvitation(Base):
+    """
+    Invitation table for inviting users to an organisation.
+    """
+    __tablename__ = "membership_invitations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False)
+    email = Column(String, nullable=False)
+    role = Column(Enum(MembershipRoleEnum), default=MembershipRoleEnum.MEMBER, nullable=False)
+    token_hash = Column(String, nullable=False)  # SHA256 hash of the invitation token
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organisation = relationship("Organisation", back_populates="membership_invitations")
+
+    __table_args__ = (
+        Index('idx_membership_invitations_organisation_id', 'organisation_id'),
+        Index('idx_membership_invitations_email', 'email'),
+        Index('idx_membership_invitations_token_hash', 'token_hash'),
+    )
+
+
+class AgreementAccessToken(Base):
+    """
+    Access tokens for customer portal access to agreements.
+    """
+    __tablename__ = "agreement_access_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    agreement_id = Column(UUID(as_uuid=True), ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String, unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+
+    agreement = relationship("Agreement")
+
+    __table_args__ = (
+        Index('idx_agreement_access_tokens_agreement_id', 'agreement_id'),
+        Index('idx_agreement_access_tokens_token_hash', 'token_hash'),
+    )
 
 class Client(Base):
     __tablename__ = "clients"
@@ -90,8 +186,8 @@ class Client(Base):
     city = Column(String)
     postcode = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
     organisation = relationship("Organisation", back_populates="clients")
     policies = relationship("Policy", back_populates="client", cascade="all, delete-orphan")
     agreements = relationship("Agreement", back_populates="client", cascade="all, delete-orphan")
@@ -114,8 +210,8 @@ class Policy(Base):
     end_date = Column(DateTime(timezone=True), nullable=False)  # Changed from expiry_date
     premium_amount_pennies = Column(Integer, nullable=False)  # Changed from gross_premium
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
     organisation = relationship("Organisation", back_populates="policies")
     client = relationship("Client", back_populates="policies")
     agreements = relationship("Agreement", back_populates="policy", cascade="all, delete-orphan")
@@ -140,8 +236,8 @@ class Agreement(Base):
     signed_at = Column(DateTime(timezone=True))
     activated_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
     organisation = relationship("Organisation", back_populates="agreements")
     client = relationship("Client", back_populates="agreements")
     policy = relationship("Policy", back_populates="agreements")

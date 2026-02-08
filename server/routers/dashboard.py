@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from datetime import datetime
 from decimal import Decimal
 from database import get_db
@@ -15,67 +15,95 @@ async def get_dashboard(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    is_internal = auth.role == "INTERNAL"
-    org_filter = {} if is_internal else {"organisation_id": auth.organisation_id}
-    
-    # Get agreement counts
-    query = db.query(models.Agreement)
-    if not is_internal:
-        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
-    
-    active_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.ACTIVE).count()
-    
-    defaulted_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.DEFAULTED).count()
-    
-    terminated_count = query.filter(models.Agreement.status == models.AgreementStatusEnum.TERMINATED).count()
-    
-    # Calculate YTD revenue
-    year_start = datetime(datetime.utcnow().year, 1, 1)
-    
-    revenue_query = db.query(models.Agreement).filter(
-        models.Agreement.created_at >= year_start,
+    require_role("OWNER", "ADMIN", "MEMBER", "READ_ONLY")(auth)
+    org_id = auth.organisation_id
+
+    # Client stats
+    total_clients = db.query(models.Client).filter(
+        models.Client.organisation_id == org_id
+    ).count()
+
+    # Agreement stats by status
+    agreement_query = db.query(models.Agreement).filter(
+        models.Agreement.organisation_id == org_id
+    )
+
+    total_agreements = agreement_query.count()
+    draft_count = agreement_query.filter(models.Agreement.status == models.AgreementStatusEnum.DRAFT).count()
+    proposed_count = agreement_query.filter(models.Agreement.status == models.AgreementStatusEnum.PROPOSED).count()
+    active_count = agreement_query.filter(models.Agreement.status == models.AgreementStatusEnum.ACTIVE).count()
+    signed_count = agreement_query.filter(models.Agreement.status == models.AgreementStatusEnum.SIGNED).count()
+
+    # Total financed amount (active + signed agreements)
+    total_financed = db.query(func.sum(models.Agreement.principal_amount_pennies)).filter(
+        models.Agreement.organisation_id == org_id,
         models.Agreement.status.in_([
             models.AgreementStatusEnum.ACTIVE,
             models.AgreementStatusEnum.SIGNED
         ])
-    )
-    
-    if not is_internal:
-        revenue_query = revenue_query.filter(models.Agreement.organisation_id == auth.organisation_id)
-    
-    agreements = revenue_query.all()
-    
-    # Note: CommissionLine model doesn't exist in current database
-    # For now, calculate revenue as a simple percentage of principal amounts
-    revenue_ytd = Decimal(0)
-    for agreement in agreements:
-        # Simple calculation: 2% of principal amount as revenue
-        commission = Decimal(agreement.principal_amount_pennies) / 100 * Decimal(0.02)
-        revenue_ytd += commission
-    
-    # Note: AgreementEvent model doesn't exist in current database
-    # For now, return empty notifications
-    notifications = []
-    
-    return {
-        "active_agreements": active_count,
-        "defaults": defaulted_count,
-        "terminated": terminated_count,
-        "revenue_ytd": float(revenue_ytd),
-        "notifications": notifications
-    }
+    ).scalar() or 0
 
-def format_event_message(event_type: str, client) -> str:
-    client_name = f"{client.first_name} {client.last_name}"
-    
-    messages = {
-        "AGREEMENT_CREATED": f"New agreement created for {client_name}",
-        "AGREEMENT_PROPOSED": f"Agreement proposed to {client_name}",
-        "AGREEMENT_SIGNED": f"{client_name} signed their agreement",
-        "PAYMENT_RECEIVED": f"Payment received from {client_name}",
-        "PAYMENT_MISSED": f"Payment missed by {client_name}"
+    # Recent clients (last 5)
+    recent_clients = db.query(models.Client).filter(
+        models.Client.organisation_id == org_id
+    ).order_by(desc(models.Client.created_at)).limit(5).all()
+
+    # Recent agreements (last 5) with client info
+    recent_agreements = db.query(models.Agreement).filter(
+        models.Agreement.organisation_id == org_id
+    ).order_by(desc(models.Agreement.created_at)).limit(5).all()
+
+    # Proposed agreements list (for follow-up tracking)
+    proposed_agreements_list = db.query(models.Agreement).filter(
+        models.Agreement.organisation_id == org_id,
+        models.Agreement.status == models.AgreementStatusEnum.PROPOSED
+    ).order_by(desc(models.Agreement.created_at)).limit(10).all()
+
+    # Format recent clients
+    recent_clients_data = [
+        {
+            "id": str(c.id),
+            "name": f"{c.first_name} {c.last_name}",
+            "email": c.email,
+            "created_at": c.created_at.isoformat() if c.created_at else None
+        }
+        for c in recent_clients
+    ]
+
+    # Format recent agreements with client names
+    recent_agreements_data = []
+    for a in recent_agreements:
+        client = db.query(models.Client).filter(models.Client.id == a.client_id).first()
+        recent_agreements_data.append({
+            "id": str(a.id),
+            "client_name": f"{client.first_name} {client.last_name}" if client else "Unknown",
+            "principal_amount_pennies": a.principal_amount_pennies,
+            "status": a.status.value,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        })
+
+    # Format proposed agreements for follow-up tracking
+    proposed_agreements_data = []
+    for a in proposed_agreements_list:
+        client = db.query(models.Client).filter(models.Client.id == a.client_id).first()
+        proposed_agreements_data.append({
+            "id": str(a.id),
+            "client_name": f"{client.first_name} {client.last_name}" if client else "Unknown",
+            "client_email": client.email if client else None,
+            "client_phone": client.phone if client else None,
+            "principal_amount_pennies": a.principal_amount_pennies,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        })
+
+    return {
+        "total_clients": total_clients,
+        "total_agreements": total_agreements,
+        "draft_agreements": draft_count,
+        "proposed_agreements": proposed_count,
+        "signed_agreements": signed_count,
+        "active_agreements": active_count,
+        "total_financed_pennies": total_financed,
+        "recent_clients": recent_clients_data,
+        "recent_agreements": recent_agreements_data,
+        "proposed_agreements_list": proposed_agreements_data
     }
-    
-    return messages.get(event_type, f"Event: {event_type} for {client_name}")

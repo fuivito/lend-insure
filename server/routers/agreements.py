@@ -6,7 +6,7 @@ from decimal import Decimal
 import uuid
 from database import get_db
 from middleware.auth import AuthContext, get_auth_context
-from middleware.rbac import require_role
+from middleware.rbac import require_minimum_role
 import models
 import schemas
 import math
@@ -22,14 +22,14 @@ async def list_agreements(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Agreement)
-    
-    # Organisation scoping
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
-    
+    # Any authenticated user can list agreements
+    require_minimum_role("READ_ONLY")(auth)
+
+    # Always filter by organisation
+    query = db.query(models.Agreement).filter(
+        models.Agreement.organisation_id == auth.organisation_id
+    )
+
     if status:
         query = query.filter(models.Agreement.status == status)
     if client_id:
@@ -54,14 +54,13 @@ async def get_agreement(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN", "INTERNAL")(auth)
-    
-    query = db.query(models.Agreement).filter(models.Agreement.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
-    
-    agreement = query.first()
+    # Any authenticated user can view an agreement
+    require_minimum_role("READ_ONLY")(auth)
+
+    agreement = db.query(models.Agreement).filter(
+        models.Agreement.id == id,
+        models.Agreement.organisation_id == auth.organisation_id
+    ).first()
     
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
@@ -74,7 +73,8 @@ async def create_agreement(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
+    # MEMBER+ can create agreements
+    require_minimum_role("MEMBER")(auth)
     
     # Verify client and policy
     client = db.query(models.Client).filter(
@@ -155,7 +155,8 @@ async def propose_agreement(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
+    # MEMBER+ can propose agreements
+    require_minimum_role("MEMBER")(auth)
     
     agreement = db.query(models.Agreement).filter(
         models.Agreement.id == id,
@@ -184,15 +185,14 @@ async def delete_agreement(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context)
 ):
-    require_role("BROKER", "BROKER_ADMIN")(auth)
-    
-    # Find the agreement
-    query = db.query(models.Agreement).filter(models.Agreement.id == id)
-    
-    if auth.role != "INTERNAL":
-        query = query.filter(models.Agreement.organisation_id == auth.organisation_id)
-    
-    agreement = query.first()
+    # ADMIN+ can delete agreements
+    require_minimum_role("ADMIN")(auth)
+
+    # Find the agreement within user's organisation
+    agreement = db.query(models.Agreement).filter(
+        models.Agreement.id == id,
+        models.Agreement.organisation_id == auth.organisation_id
+    ).first()
     
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")

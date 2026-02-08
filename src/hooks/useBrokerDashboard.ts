@@ -1,18 +1,41 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api/client';
 
+interface RecentClient {
+  id: string;
+  name: string;
+  email: string;
+  created_at: string | null;
+}
+
+interface RecentAgreement {
+  id: string;
+  client_name: string;
+  principal_amount_pennies: number;
+  status: string;
+  created_at: string | null;
+}
+
+interface ProposedAgreement {
+  id: string;
+  client_name: string;
+  client_email: string | null;
+  client_phone: string | null;
+  principal_amount_pennies: number;
+  created_at: string | null;
+}
+
 interface DashboardStats {
+  total_clients: number;
+  total_agreements: number;
+  draft_agreements: number;
+  proposed_agreements: number;
+  signed_agreements: number;
   active_agreements: number;
-  defaults: number;
-  terminated: number;
-  revenue_ytd: number;
-  notifications: Array<{
-    id: string;
-    type: string;
-    message: string;
-    timestamp: string;
-    agreement_id: string;
-  }>;
+  total_financed_pennies: number;
+  recent_clients: RecentClient[];
+  recent_agreements: RecentAgreement[];
+  proposed_agreements_list: ProposedAgreement[];
 }
 
 interface UseBrokerDashboardResult {
@@ -30,7 +53,7 @@ export function useBrokerDashboard(): UseBrokerDashboardResult {
   const fetchDashboard = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await apiClient.getDashboard();
       setStats(response as DashboardStats);
