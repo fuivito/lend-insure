@@ -63,6 +63,24 @@ const CHART_COLORS = {
   ACTIVE: '#22c55e',
 };
 
+const statusIconBg: Record<string, string> = {
+  DRAFT: 'bg-slate-500/10',
+  PROPOSED: 'bg-blue-500/10',
+  SIGNED: 'bg-purple-500/10',
+  ACTIVE: 'bg-emerald-500/10',
+  DEFAULTED: 'bg-red-500/10',
+  TERMINATED: 'bg-gray-500/10',
+};
+
+const statusIconColor: Record<string, string> = {
+  DRAFT: 'text-slate-600 dark:text-slate-400',
+  PROPOSED: 'text-blue-600 dark:text-blue-400',
+  SIGNED: 'text-purple-600 dark:text-purple-400',
+  ACTIVE: 'text-emerald-600 dark:text-emerald-400',
+  DEFAULTED: 'text-red-600 dark:text-red-400',
+  TERMINATED: 'text-gray-600 dark:text-gray-400',
+};
+
 const getDaysColor = (days: number) => {
   if (days <= 2) return 'text-green-600 bg-green-50';
   if (days <= 5) return 'text-yellow-600 bg-yellow-50';
@@ -135,10 +153,11 @@ export default function BrokerDashboard() {
   // Bar chart: latest agreements by value (from recent_agreements)
   const latestByValueData = stats.recent_agreements
     .map((a) => ({
-      name: a.client_name.split(' ').map((s) => s[0]).join('') || '—',
+      name: a.client_name.split(' ')[0] || '—', // First name only for cleaner display
       fullName: a.client_name,
       value: a.principal_amount_pennies / 100,
       valuePennies: a.principal_amount_pennies,
+      status: a.status,
     }))
     .reverse();
 
@@ -172,101 +191,110 @@ export default function BrokerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
         <Card
-          className="cursor-pointer rounded-2xl border-border/60 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200"
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/20 hover:shadow-md transition-all duration-200 group"
           onClick={() => navigate('/app/broker/clients')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Clients</p>
-                <p className="text-2xl font-semibold mt-1 tabular-nums">{stats.total_clients}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="h-9 w-9 rounded-lg bg-blue-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Users className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Clients</p>
+                <p className="text-3xl font-bold mt-0.5 tabular-nums text-blue-900 dark:text-blue-100">{stats.total_clients}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer rounded-2xl border-border/60 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200"
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900/40 dark:to-slate-800/20 hover:shadow-md transition-all duration-200 group"
           onClick={() => navigate('/app/broker/agreements?status=DRAFT')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-slate-400 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Drafts</p>
-                <p className="text-2xl font-semibold mt-1 tabular-nums">{stats.draft_agreements}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-slate-500/10 flex items-center justify-center">
-                <FilePen className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                <div className="h-9 w-9 rounded-lg bg-slate-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <FilePen className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Drafts</p>
+                <p className="text-3xl font-bold mt-0.5 tabular-nums text-slate-800 dark:text-slate-100">{stats.draft_agreements}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer rounded-2xl border-border/60 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200"
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/40 dark:to-sky-900/20 hover:shadow-md transition-all duration-200 group"
           onClick={() => navigate('/app/broker/agreements?status=PROPOSED')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-sky-500 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Proposed</p>
-                <p className="text-2xl font-semibold mt-1 tabular-nums">{stats.proposed_agreements}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="h-9 w-9 rounded-lg bg-sky-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Send className="h-4.5 w-4.5 text-sky-600 dark:text-sky-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-sky-600/70 dark:text-sky-400/70 uppercase tracking-wider">Proposed</p>
+                <p className="text-3xl font-bold mt-0.5 tabular-nums text-sky-900 dark:text-sky-100">{stats.proposed_agreements}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer rounded-2xl border-border/60 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200"
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 hover:shadow-md transition-all duration-200 group"
           onClick={() => navigate('/app/broker/agreements?status=ACTIVE')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active</p>
-                <p className="text-2xl font-semibold mt-1 tabular-nums">{stats.active_agreements}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <FileCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <div className="h-9 w-9 rounded-lg bg-emerald-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <FileCheck className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider">Active</p>
+                <p className="text-3xl font-bold mt-0.5 tabular-nums text-emerald-900 dark:text-emerald-100">{stats.active_agreements}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer rounded-2xl border-border/60 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200"
-          onClick={() => navigate('/app/broker/agreements')}
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/40 dark:to-violet-900/20 hover:shadow-md transition-all duration-200 group"
+          onClick={() => navigate('/app/broker/agreements?status=SIGNED')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-violet-500 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</p>
-                <p className="text-2xl font-semibold mt-1 tabular-nums">{stats.total_agreements}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                <div className="h-9 w-9 rounded-lg bg-violet-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <FileCheck className="h-4.5 w-4.5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-violet-600/70 dark:text-violet-400/70 uppercase tracking-wider">Signed</p>
+                <p className="text-3xl font-bold mt-0.5 tabular-nums text-violet-900 dark:text-violet-100">{stats.signed_agreements}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-primary/20 bg-gradient-to-br from-primary/8 to-primary/4 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+        <Card
+          className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 hover:shadow-md transition-all duration-200 group"
+          onClick={() => navigate('/app/broker/agreements')}
+        >
+          <CardContent className="p-4 relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 rounded-l-xl" />
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Financed</p>
-                <p className="text-xl font-semibold mt-1 tabular-nums">{formatCurrency(stats.total_financed_pennies)}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                <PoundSterling className="h-5 w-5 text-primary" />
+                <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <PoundSterling className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <p className="text-[11px] font-semibold text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Financed</p>
+                <p className="text-2xl font-bold mt-0.5 tabular-nums text-amber-900 dark:text-amber-100">{formatCurrency(stats.total_financed_pennies)}</p>
               </div>
             </div>
           </CardContent>
@@ -341,7 +369,7 @@ export default function BrokerDashboard() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                     <XAxis type="number" tickFormatter={(v) => `£${v}`} fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis type="category" dataKey="name" width={32} fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis type="category" dataKey="name" width={70} fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                     <Tooltip
                       formatter={(value: number, _name: string, item: { payload?: { fullName: string; valuePennies: number } }) => {
                         const p = item?.payload;
@@ -357,7 +385,14 @@ export default function BrokerDashboard() {
                       }}
                       labelFormatter={() => ''}
                     />
-                    <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} maxBarSize={28} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                      {latestByValueData.map((entry, index) => (
+                        <Cell
+                          key={`bar-${index}`}
+                          fill={CHART_COLORS[entry.status as keyof typeof CHART_COLORS] || 'hsl(var(--primary))'}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -489,28 +524,36 @@ export default function BrokerDashboard() {
             </div>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              {stats.recent_agreements.map((agreement) => (
-                <div
-                  key={agreement.id}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-muted/40 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/app/broker/agreements/${agreement.id}`)}
-                >
-                  <div className="h-8 w-8 rounded-lg bg-muted/80 flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{agreement.client_name}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {formatCurrency(agreement.principal_amount_pennies)}
-                      </span>
-                      <Badge className={`text-[10px] px-1.5 py-0 ${statusColors[agreement.status]}`}>
-                        {agreement.status}
-                      </Badge>
+              {stats.recent_agreements.map((agreement) => {
+                const StatusIcon = agreement.status === 'DRAFT' ? FilePen
+                  : agreement.status === 'PROPOSED' ? Send
+                  : agreement.status === 'SIGNED' ? FileCheck
+                  : agreement.status === 'ACTIVE' ? FileCheck
+                  : FileText;
+
+                return (
+                  <div
+                    key={agreement.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-muted/40 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/app/broker/agreements/${agreement.id}`)}
+                  >
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${statusIconBg[agreement.status] || 'bg-muted/80'}`}>
+                      <StatusIcon className={`h-4 w-4 ${statusIconColor[agreement.status] || 'text-muted-foreground'}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{agreement.client_name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(agreement.principal_amount_pennies)}
+                        </span>
+                        <Badge className={`text-[10px] px-1.5 py-0 ${statusColors[agreement.status]}`}>
+                          {agreement.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
