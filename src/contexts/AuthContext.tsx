@@ -44,6 +44,7 @@ export interface AuthState {
   // Status
   hasMembership: boolean;
   hasPendingInvitation: boolean;
+  membershipError: string | null;
 }
 
 export interface AuthContextValue extends AuthState {
@@ -57,6 +58,7 @@ export interface AuthContextValue extends AuthState {
   createOrganisation: (name: string, orgType?: string) => Promise<{ error: Error | null }>;
   redeemInvitation: (token: string) => Promise<{ error: Error | null }>;
   refreshMembership: () => Promise<void>;
+  membershipError: string | null;
   // Role checks
   isOwner: boolean;
   isAdmin: boolean;
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isCheckingMembership: false,
     hasMembership: false,
     hasPendingInvitation: false,
+    membershipError: null,
   });
 
   // Helper to make authenticated API calls
@@ -107,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check membership status after Supabase auth
   const checkMembership = useCallback(async () => {
-    setState(prev => ({ ...prev, isCheckingMembership: true }));
+    setState(prev => ({ ...prev, isCheckingMembership: true, membershipError: null }));
 
     try {
       const data = await authenticatedFetch('/api/auth/check-membership');
@@ -143,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
           hasMembership: true,
           hasPendingInvitation: false,
+          membershipError: null,
           isCheckingMembership: false,
         }));
       } else {
@@ -153,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           membership: null,
           hasMembership: false,
           hasPendingInvitation: data.has_pending_invitation,
+          membershipError: null,
           isCheckingMembership: false,
         }));
       }
@@ -165,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         membership: null,
         hasMembership: false,
         hasPendingInvitation: false,
+        membershipError: error instanceof Error ? error.message : 'Failed to connect to server',
         isCheckingMembership: false,
       }));
     }
