@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Users,
   PieChart,
-  Building,
   ScrollText
 } from 'lucide-react';
 
@@ -39,16 +38,12 @@ export function Sidebar() {
   return (
     <div className="h-full bg-card border-r border-border flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-hover rounded-lg flex items-center justify-center">
-            <Building className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="font-heading text-lg font-bold text-foreground">LendInsure</h1>
-            <p className="text-xs text-muted-foreground">Premium Finance</p>
-          </div>
-        </div>
+      <div className="px-6 py-5 border-b border-border">
+        <img
+          src="/flexra_full_logo.png"
+          alt="Flexra"
+          className="h-10 w-auto max-w-full"
+        />
       </div>
 
       {/* Environment badge */}
