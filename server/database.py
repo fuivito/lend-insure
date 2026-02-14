@@ -1,8 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from config import settings
-from urllib.parse import urlparse
 
 # Supabase Postgres requires SSL in production. Normalize URL and enforce SSL.
 def _normalize_database_url(url: str) -> str:
@@ -20,7 +20,8 @@ connect_args = {}
 if normalized_url and "supabase.co" in normalized_url:
     connect_args = {"sslmode": "require"}
 
-engine = create_engine(normalized_url, connect_args=connect_args)   
+# Use NullPool for serverless — no point maintaining a pool in a short-lived function
+engine = create_engine(normalized_url, connect_args=connect_args, poolclass=NullPool)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
